@@ -1,0 +1,4 @@
+data/*
+secrets.json
+secrets.yaml
+par_plants.py
