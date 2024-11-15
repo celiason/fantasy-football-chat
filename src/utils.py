@@ -51,30 +51,13 @@ def pull_trade_details(x):
     # df['timestamp'] = timestamp
     # df['trans_id'] = trans_id
     return res
+
 # Testing zone
 # trades = lg.transactions(tran_types="trade", count=None)
 # pull_trade_details(trades[0])
 # pprint(trades) # sweet!!
 
-# Function to pull transactions and create dataframe
-# Works for adds/drops (not trades)
-def pull_trans(x):
-    trans_data = x[1]['transaction_data']
-    # Adds are a list
-    if type(trans_data) == list:
-        trans_type = trans_data[0]['type']
-        start = trans_data[0]['source_type']
-        end = trans_data[0]['destination_team_key']
-    # Drops are a dict
-    else:
-        trans_type = trans_data['type']
-        start = trans_data['source_team_key']
-        end = trans_data['destination_type']
-    return trans_type, start, end
-
-# Testing zone
-# lg = get_league(2007)
-
+# Function to prepare transactions for reading
 def prepare_transactions(adds):
     items = []
     for item in adds:
