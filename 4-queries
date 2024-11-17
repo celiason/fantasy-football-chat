@@ -1,0 +1,162 @@
+-- I removed a column:
+-- ALTER TABLE events
+-- DROP COLUMN name;
+
+SELECT name, events.player_id
+FROM events
+LEFT JOIN players
+    ON events.player_id = players.player_id
+
+-- LEFT JOIN managers
+--     ON managers.manager_id
+-- WHERE year = 2023
+-- LIMIT 10;
+
+-- Look at adds per year
+SELECT year, COUNT(*)
+FROM events
+WHERE trans_type = 'add'
+GROUP BY year
+ORDER BY COUNT(*) DESC
+LIMIT 10;
+
+
+-- What football players was dropped the most
+SELECT players.name, COUNT(*) AS adds
+FROM events
+LEFT JOIN players
+    ON events.player_id = players.player_id
+WHERE trans_type = 'add'
+GROUP BY players.name
+ORDER BY adds DESC
+LIMIT 25;
+
+-- Who made the most adds
+
+
+-- Look at adds per year
+SELECT year,
+    SUM(CASE WHEN trans_type = 'add' THEN 1 ELSE 0 END) AS adds,
+    SUM(CASE WHEN trans_type = 'drop' THEN 1 ELSE 0 END) AS drops,
+    SUM(CASE WHEN trans_type = 'trade' THEN 1 ELSE 0 END) AS trades
+FROM events
+-- WHERE trans_type = 'add'
+GROUP BY year
+ORDER BY year;
+
+
+-- Who did I (Chad) play the most over the years?
+SELECT t1.nickname, t1.year, m.manager_id, t1.team_key
+FROM managers m
+LEFT JOIN teams t1
+    ON m.manager_id = t1.manager_id
+LEFT JOIN matchups ma
+    ON t1.team_key = ma.team_key1 OR t1.team_key = ma.team_key2
+WHERE t1.nickname = 'Chad';
+
+-- What player moved around between teams the most in 2007?
+SELECT p.name, COUNT(DISTINCT player_destination) AS num_teams
+FROM events e
+LEFT JOIN players p
+    ON e.player_id = p.player_id
+WHERE year = 2023
+GROUP BY p.name
+ORDER BY num_teams DESC
+LIMIT 10;
+
+-- Who had the best draft pick in 2007?
+-- best draft pick - pick that contributed most points per week
+-- for that team
+-- if a manager dropped a player, the point scoring ends
+-- look at events table for that
+
+SELECT m.name
+FROM managers m
+LEFT JOIN 
+
+
+-- What was the "best move" of all time?
+-- see what player added from FA/waivers (or trade made) that gave the most points to the receiving team
+
+
+-- What player had the most points in 2007?
+SELECT w.year, p.name, SUM(total_points)
+FROM statistics s
+LEFT JOIN players p
+    ON s.player_id = p.player_id
+LEFT JOIN weeks w
+    ON s.week_id = w.week_id
+GROUP BY p.name, w.year
+ORDER BY w.year ASC;
+
+
+-- How close was the in-season rank to the draft position?
+-- only top 12 draft picks
+WITH top12 AS (
+    SELECT player_id
+    FROM events
+    WHERE year = 2023-- and event = 'draft'
+    ORDER BY timestamp
+    LIMIT 12
+),
+-- running backs
+rbs AS (
+    select player_id
+    from players
+    where eligible_positions LIKE '%RB%'
+)
+-- get statistic summary
+SELECT p.name, SUM(total_points)
+FROM statistics s
+LEFT JOIN players p
+    ON s.player_id = p.player_id
+WHERE s.player_id IN (SELECT * FROM rbs) AND 
+        s.player_id IN (SELECT * from top12) AND
+        year = 2023
+GROUP BY p.name
+;
+
+
+-- How close was the in-season rank to the draft position?
+WITH rbs AS (
+    select player_id
+    from players
+    where eligible_positions LIKE '%RB%'
+)
+SELECT p.name, RANK(SUM(total_points)) AS rank
+FROM statistics s
+LEFT JOIN players p
+    ON s.player_id = p.player_id
+WHERE s.player_id IN (SELECT * from rbs) AND year = 2023
+GROUP BY p.name
+ORDER BY rank DESC
+;
+
+-- Positional ranks by season
+-- SELECT SUM(total_points), RANK() OVER (PARTITION BY position, year ORDER BY SUM(total_points) DESC)
+-- FROM statistics
+WITH season_pts AS (
+    SELECT p.eligible_positions, p.player_id, p.name, w.year, ROUND(SUM(total_points)::numeric, 1) points
+    FROM statistics s
+    LEFT JOIN players p
+        ON s.player_id = p.player_id
+    LEFT JOIN weeks w
+        ON s.week_id = w.week_id
+    GROUP BY p.player_id, w.year, p.name, p.eligible_positions
+    ORDER BY points DESC
+)
+
+SELECT *
+FROM season_pts
+WHERE name LIKE '%Gurley%';
+
+
+SELECT p.name, p.position_type, p.eligible_positions, ROUND(SUM(total_points)::numeric, 0)
+FROM statistics s
+LEFT JOIN players p
+    ON s.player_id = p.player_id
+WHERE s.player_id IN (SELECT * FROM top12) AND year = 2023
+GROUP BY p.name;
+
+-- calculate position ranks for that year
+

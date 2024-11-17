@@ -20,6 +20,8 @@ gm = yfa.Game(sc, 'nfl')
 
 # Function to return a league object given a league name
 def get_league(year, league_name="The Slow Learners"):
+    sc = OAuth2(None, None, from_file='secrets.yaml')
+    gm = yfa.Game(sc, 'nfl')
     league_ids = gm.league_ids(year=year)
     for id in league_ids:
         lg = gm.to_league(id)

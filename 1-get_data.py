@@ -13,7 +13,7 @@ from collections import ChainMap
 from tqdm import tqdm
 
 # Load my functions
-from src.utils import get_league, pull_trans, pull_trade_details, pull_managers, get_transactions, get_rosters
+from src.utils import get_league, pull_trade_details, pull_managers, get_transactions, get_rosters
 
 # pprint(lg.matchups())
 
@@ -66,17 +66,12 @@ all_drafts.to_csv("data/drafts.csv")
 
 all_teams['nickname'].value_counts()
 
-all_transactions.head()
-
 len(all_transactions) # total of 4242 transactions :)
 
 # Plot trades over time
 all_transactions[all_transactions['trans_type']=="trade"].groupby(['year']).size().plot()
 
-
-# TODO: get player statistics (this will take a long time)
-# all_players = pd.DataFrame()
-
+# Get matchups
 all_matchups = pd.DataFrame()
 for year in tqdm(range(2007, 2024), desc="Processing matchups"):
     try:
@@ -113,54 +108,16 @@ for year in range(2007, 2024):
     sleep(300)  # sleep for 5 minutes
 
 
-# Trying to figure out the denver problem (active week 1 but not on my roster week 2, or in the transactions data)
-df = get_rosters(year=2007)
-df[df['player_id'] == 100007]
-df[(df['team_key'] == '175.l.283770.t.8') & (df['week'] == 2)]
-
-sc = OAuth2(None, None, from_file='secrets.yaml')
-gm = yfa.Game(sc, 'nfl')
-
-lg = get_league(2007)
-
-lg.transactions(tran_types="drop", count=None)
-
-
-# Use the pandas lt function and shift to find where next week isn't increasing (so a new year)
-# I forgot to put this in the script
-all_rosters['year'] = all_rosters['week'].lt(all_rosters['week'].shift(1)).cumsum()
-# Replace values with years I have
-all_rosters['year'].replace({0: 2019, 1: 2020, 2: 2021, 3: 2022, 4: 2023}, inplace=True)
-
 # Check that what I've done is working like I think (teams should have ~14 players each week)
-df = all_rosters[all_rosters['year'] == 2023].groupby(['week', 'team_key']).size().unstack()
-sns.heatmap(df, vmin=1, vmax=16)
+# df = all_rosters[all_rosters['year'] == 2023].groupby(['week', 'team_key']).size().unstack()
+# sns.heatmap(df, vmin=1, vmax=16)
 # yep looks ok
 
 # Set the desired order of columns
 column_order = ['year', 'week', 'playoffs', 'team_key' ,'player_id', 'name', 'position_type', 'eligible_positions', 'selected_position']
 
-all_rosters[column_order].to_csv("data/rosters_part2.csv")
-
-# 2017 nothing?? what?? did we rename the league??
-
 # Output to CSV file
-
-df1 = all_rosters[column_order]
-df1
-
-df2 = pd.read_csv("data/rosters.csv", index_col=0)
-df2
-
-df = pd.concat([df1,df2]).sort_values(['year','week'])
-
-df.to_csv("data/rosters.csv")
-
 all_rosters[column_order].to_csv("data/rosters.csv")
-
-
-
-lg.standings()
 
 # Get week start and end points
 weeks = []
@@ -177,8 +134,51 @@ for year in tqdm(range(2007, 2024), desc="Processing Years"):
         except:
             continue
 
+# Convert to dataframe
 df = pd.DataFrame(weeks)
 
-df
-
+# Save dataframe
 df.to_csv("data/weeks.csv", index=False)
+
+
+# Get player statistics (this will take a long time)
+
+# Load rosters
+rosters = pd.read_csv("data/rosters.csv")
+
+# Create empty list for stats
+all_stats = []
+
+# Loop over years
+for year in range(2007, 2024):
+    try:
+        print(f"Processing year {year}...")
+        lg = get_league(year)
+        # Get player IDs for that year
+        player_ids = list(set(rosters[rosters["year"]==year]["player_id"]))
+    except:
+        continue
+    # Loop over weeks
+    for week in tqdm(range(1, 18), desc="Processing weeks"):
+        try:
+            # Get stats for each week
+            stats = lg.player_stats(player_ids=player_ids, week=week, req_type="week")
+            # Convert to data frame and added week, year details
+            stats = pd.DataFrame(stats)
+            stats['week'] = week
+            stats['year'] = year
+            # Append to main stats list
+            all_stats.append(stats)
+        except:
+            continue
+
+# Now concat all together and save as CSV
+statistics = pd.concat(all_stats)
+statistics['total_points'] = statistics['total_points'].astype(float)
+statistics.to_csv("data/statistics.csv", index=False)
+
+# NOTE: it seems that yahoo only started getting position-level stats in 2014. Might need to backfill with NFL data
+
+# TODO make and "update_db" kinda function that will check for changes and pull new data from Yahoo..
+# that way we can stay current and look at the year we're in.
+

@@ -1,7 +1,3 @@
-# TODO: use this later for getting combinations of 
-# from itertools import product
-# list(product([2005,2006], [1,2,3,4,5,6]))
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,8 +12,10 @@ drafts.drop(['index'], axis=1, inplace=True)
 drafts['source'] = 'freeagents'
 
 transactions = pd.read_csv("data/transactions.csv", index_col=0)
+
 # Convert from ms timestamp to dates
 transactions['timestamp'] = transactions['timestamp'].transform(datetime.fromtimestamp)
+
 # Sorting by date for later
 transactions.sort_values('timestamp', inplace=True)
 transactions.reset_index(inplace=True)
@@ -39,10 +37,14 @@ weeks['end'] = pd.to_datetime(weeks['end']) + pd.Timedelta('11:59:59')
 len(set(rosters['player_id']))  # 1090
 
 # This function will create a path for a player (e.g., bench -> active -> bench)
+
+# df = rosters[(rosters['year']==2007) & (rosters['player_id'] == 5109)]
+
+# Function that defines paths a player takes in a given year
 def get_path(df):
     df.sort_values('week', inplace=True)
-    breaks = df['status'].ne(df['status'].shift(1)).cumsum()
-    breakpoint_indices = breaks[breaks.diff().ne(0)].index.tolist()
+    breakpoints = df['selected_position'].ne(df['selected_position'].shift(1)).cumsum()
+    breakpoint_indices = breakpoints[breakpoints.diff().ne(0)].index.tolist()
     return df.loc[breakpoint_indices]
 
 # Setup the moves table
@@ -146,17 +148,22 @@ transactions['week'] = transactions['week'].astype(int)
 
 # Now concatenate into a big transitions dataframe
 # We need 3 tables: moves, transactions, and drafts
-df = pd.concat([moves,transactions,drafts])
-df.sort_values('timestamp', inplace=True)
-column_order = ['year','week','timestamp','player_id','source','destination','trans_type']
-df = df[column_order]
-df.reset_index(inplace=True)
-df.drop('index', axis=1, inplace=True)
+drafts['selected_position'] = 'BN'
+transactions['selected_position'] = np.where(transactions["trans_type"].isin(['add','trade']), 'BN', '')
+# moves['selected_position']
 
-print(df.head())
+events = pd.concat([moves,transactions,drafts])
+events.sort_values('timestamp', inplace=True)
+column_order = ['year','week','timestamp','player_id','source','destination','trans_type','selected_position']
+events = events[column_order]
+events.reset_index(inplace=True)
+events.drop('index', axis=1, inplace=True)
+
+print(events.head())
+events['selected_position'].value_counts()
 
 # Check for NAs
-df.isna().sum() # cool, no NAs!
+events.isna().sum() # cool, no NAs!
 
 # NOTE: how can i see about database efficiency for transaction stream vs static weekly roster tables?
 
@@ -165,25 +172,26 @@ len(rosters) # 32907
 len(moves) # 10356 (about 1/3 the size of the original rosters table)
 len(drafts) # 1985
 len(transactions) # 7429
-len(df) # 16583
+len(events) # 20744
 
-len(df) / (len(rosters) + len(moves) + len(drafts) + len(transactions))
-# 37.5% of the original amount of data, so that's cool
+len(events) / (len(rosters) + len(moves) + len(drafts) + len(transactions))
+# 38.7% of the original amount of data, so that's cool
 
 
 # Unique players table
+rosters = pd.read_csv("data/rosters.csv")
 players = rosters.groupby(['player_id','name']).head(1)
-players = players[['player_id','name']].sort_values('player_id')
+players = players[['player_id','name','position_type','eligible_positions']].sort_values('player_id')
 
 # COOL!!! working.
-df = df.merge(players, left_on='player_id', right_on='player_id')
+# events = events.merge(players, left_on='player_id', right_on='player_id')
 
 # Derrick henry time!
-df[df['player_id']==29279]
+# events[events['player_id']==29279]
 
 
 # When is first draft pick each year?
-df.loc[df.groupby('year')['timestamp'].idxmin()]
+# events.loc[events.groupby('year')['timestamp'].idxmin()]
 
 
 # TODO get player stats from Yahoo (this will take a while)
@@ -201,15 +209,36 @@ my_team_key = teams.query(my_query)['team_key'].values[0]
 my_query = f"week == 1 and trans_type == 'active' and year == 2007 and destination == '{my_team_key}'"
 
 my_query = f"week == 2 and year == 2007 and destination == '{my_team_key}'"
-df.query(my_query)
+events.query(my_query)
 
-testing = df[(df['source'] == my_team_key) | (df['destination'] == my_team_key)].sort_values([])
+testing = events[(events['source'] == my_team_key) | (events['destination'] == my_team_key)].sort_values([])
 testing
-testing.to_csv("data/testing3.csv")
+testing.to_csv("data/testing5.csv")
 
-df[df['trans_type']=='active']
-my_team_key
+events[events['trans_type']=='active']
 
-rosters[(rosters['player_id']==100007) & (rosters['year']==2007)]
 
-100007
+# tmp = rosters.merge(teams, on='team_key', suffixes=["", "_teams"])
+
+# tmp[(tmp["status"]=="active") & (tmp["week"]==1) & (tmp["year"]==2007) & (tmp["nickname"]=="Chad")]
+# tmp[(tmp["status"]=="active") & (tmp["week"]==2) & (tmp["year"]==2007) & (tmp["nickname"]=="Chad")]
+
+# TODO might need to see about having a category for BN-Active and Active moves to diff position
+
+events.to_csv("data/events.csv", index=False)
+
+
+# Visualize the data!
+
+import seaborn as sns
+plotdf = events.groupby('year')['trans_type'].value_counts().reset_index(name='count')
+plotdf
+
+sns.lineplot(data=plotdf, x='year', y='count', hue='trans_type')
+
+
+print(events.head())
+print(weeks.head())
+print(players.head())
+print(teams.head())
+
