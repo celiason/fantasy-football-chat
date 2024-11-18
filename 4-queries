@@ -224,3 +224,76 @@ GROUP BY p.name;
 
 -- calculate position ranks for that year
 
+
+
+
+-- What was my starting lineup in week 2 of 2008?
+
+select * from events where year = 2008 and week = 2 and event = 'active';
+
+-- there's a trick- if a player was active last week (week 1) they won't have an
+-- event active since they're still sitting in the lineup.
+-- we'll need to maybe do a lag?
+
+
+select *, LAG() OVER (PARTITION BY year ORDER BY )
+
+
+
+
+WITH ActivePlayers AS (
+    SELECT 
+        player_id,
+        player_destination,
+        week,
+        CASE 
+            WHEN event = 'active' THEN 1 
+            ELSE 0 
+        END AS is_currently_active
+    FROM 
+        events          -- Replace with your table name
+),
+CarriedForwardActivity AS (
+    SELECT 
+        player_id,
+        player_destination,
+        week,
+        MAX(is_currently_active) OVER (
+            PARTITION BY player_id, player_destination, week
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS is_active
+    FROM 
+        ActivePlayers
+)
+
+select * from CarriedForwardActivity order by player_destination, week limit 25;
+
+
+FilteredPlayers AS (
+    SELECT 
+        player_id,
+        player_destination,
+        week
+    FROM 
+        CarriedForwardActivity
+    WHERE 
+        is_active = 1
+)
+SELECT 
+    week,
+    player_destination,
+    player_id
+FROM 
+    (
+        SELECT 
+            week,
+            player_destination,
+            player_id,
+            ROW_NUMBER() OVER (PARTITION BY week, player_destination ORDER BY player_id) AS rn
+        FROM 
+            FilteredPlayers
+    ) RankedPlayers
+WHERE 
+    rn <= 9
+ORDER BY 
+    player_destination, week, player_id;

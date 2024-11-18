@@ -131,35 +131,63 @@ def llm_query(question, tone='professional'):
 
     Context:
 
-    Table: statistics
-    Table: 
+    Table: events
+        event_id - ID of the event
+        year - The NFL year (or season)
+        week - The NFL week
+        timestamp - The timestamp of the event
+        player_id - The player ID
+        player_source - The source of the player (either a team, or free agent/waiver wire)
+        player_destination - The destination of the player (either a team, or free agent/waiver wire)
+        event - Whether a player was drafted, added, dropped, benched, or placed on the active roster
+        position - The position selected by a manager for that week
 
-    - The events table has all the transactions that occur for a player
-        (add to a team, drop from a team, put on an active roster 
-        for a game week, etc.)
-    - The games table is the set of matchups betwen teams for each week. team_key_winner and team_key_loser correspond to the team_key in teams.
-    - The managers table is the list of people in the league that manage a team
-    - The players table is the list of NFL players that are managed by managers
-    - The teams table has all the teams managed by different managers
-    - The weeks table has the date ranges of weeks for each season (year)
+    Table: games
+        matchup_id - ID of the matchup
+        year - The NFL year (or season)
+        week - The NFL week
+        team_key_winner - The team key for the winning team (see teams table)
+        team_key_loser - The team key for the losing team (see teams table)
+        points_winner - How many fantasy points the winner had
+        points_loser - How many fantasy points the loser had
+
+    Table: managers
+        manager_id - Unique ID of the manager
+        name - Nickname (or person name) of the manager
+
+    Table: teams
+        team_key - Unique team key (matches with team_key columns in games table)
+        team_name - Name of the team for a given year and manager
+        division_id - Division a team was in that year
+        draft_grade - Draft grade for a team
+        year - NFL season
+        manager_id - Unique ID of the manager (see managers table)
+
+    Table: players
+        player_id - Unique player ID
+        name - Player name
+        position_type - Type of position (offense, defense)
+        eligible_positions - List of eligible positions for that player
+    
+    Table: statistics
+        stat_id - Unique ID for a statistic
+        week_id - ID for the week of the season (see weeks table)
+        player_id - ID of the player (see players table)
+        total_points - Total fantasy points in a week for that player
+
+    Table: rosters
+        roster_id - Unique ID
+        year - NFL season/year
+        week - NFL week
+        team_key - Team key (see teams table)
+        player_id - Player ID (see players table)
+        selected_position - Selected position for a player
 
     Only use the SQL database.
 
     Don't make up answers if you don't know.
     Admit you don't know.
     Be polite.
-
-    When I ask "How many games did Bill win in 2007"
-    you should perform this type of query-
-    SELECT g.year,COUNT(g.team_key_winner),m.manager_name
-    FROM games g
-    LEFT JOIN teams t
-        on g.team_key_winner = t.team_key
-    LEFT JOIN managers m
-        on t.manager_id = m.manager_id
-    WHERE manager_name = 'Bill' and g.year = 2007
-    GROUP BY m.manager_name, g.year
-    ORDER BY g.year ASC;
 
     Only provide the answer, don't give details about the SQL query.
 
@@ -171,15 +199,15 @@ def llm_query(question, tone='professional'):
     print(response)
 
 
-llm_query("What team does Bo manage?")
+llm_query("What team does manager Bo manage?")
 llm_query("What team does Shane manage?")
 llm_query("What team does Chad manage?")
-llm_query("What are the top 3 players on an active roster?", add_context=True)
 
 llm_query("What manager had the best draft grade for each year?")
 
 llm_query("How many games did manager Shane win in 2008?")
 # GOOD: Manager Shane won 11 games in the year 2008.
+
 llm_query("How many games on average did manager Shane win in a year?")
 # BAD: it gave 16.4 haha
 
@@ -219,7 +247,13 @@ LIMIT 5;
 ;
 
 
-llm_query("What player had the most total points in 2007? hint: use the statistics table")
+llm_query("List the players on the roster for manager Chad in week 2 of 2008")
+
+llm_query("What RB had the most total points in 2023? And what team was he on?")
+
+llm_query("What RB had the most total points in 2023?")
+
+llm_query("What WR had the most total points in 2023?")
 
 llm_query("What are the names of the players with the top-3 most total points in 2023? hint: use the statistics table")
 

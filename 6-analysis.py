@@ -155,7 +155,7 @@ plt.show()
 import pandas as pd
 import seaborn as sns
 df = pd.read_csv("test.csv")
-df['differential'] = df['points_rank'] - df['draft_rank']
+df['differential'] = df['draft_rank'] - df['points_rank']
 
 sns.scatterplot(df, x='points_rank', y='draft_rank', hue='position')
 
@@ -163,9 +163,14 @@ sns.scatterplot(df, x='position', y='differential')
 
 sns.lineplot(df, x='draft_rank', y='differential', hue='position')
 
+df_rb_top20 = df[(df["draft_rank"] < 20) & (df["position"] == "RB")]
+
+sns.barplot(df_rb_top20, x='draft_rank', y='differential')
+
 df[df['points_rank'] == df['draft_rank']]
 
 df[df['position']=='RB']
+df[df['position']=='TE'].sort_values('points', ascending=False)
 
 # NOTE I want to think of some metric that captures how good someone did in a draft.
 

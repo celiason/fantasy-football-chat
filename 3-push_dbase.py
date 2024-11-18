@@ -103,3 +103,8 @@ columns = ['week_id', 'player_id', 'total_points', 'pass_yds', 'pass_td', 'int',
 statistics = statistics[columns]
 statistics.index.name = 'stat_id'
 statistics.to_sql('statistics', engine)
+
+
+rosters = pd.read_csv("data/rosters.csv")
+rosters = rosters[['year','week','team_key','player_id','selected_position']]
+rosters.to_sql('rosters', engine)
