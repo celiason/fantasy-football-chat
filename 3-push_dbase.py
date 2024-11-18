@@ -79,7 +79,6 @@ statistics['fgm_20_29'] = statistics['fgm_20_29'].fillna(statistics['fg_20_29'])
 statistics['fgm_30_39'] = statistics['fgm_30_39'].fillna(statistics['fg_30_39'])
 
 statistics.drop(['fg_0_19','fg_20_29','fg_30_39'], axis=1, inplace=True)
-statistics.columns
 
 # Look at missing values by column
 import missingno as msno
@@ -104,5 +103,3 @@ columns = ['week_id', 'player_id', 'total_points', 'pass_yds', 'pass_td', 'int',
 statistics = statistics[columns]
 statistics.index.name = 'stat_id'
 statistics.to_sql('statistics', engine)
-
-

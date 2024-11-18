@@ -177,6 +177,9 @@ statistics = pd.concat(all_stats)
 statistics['total_points'] = statistics['total_points'].astype(float)
 statistics.to_csv("data/statistics.csv", index=False)
 
+statistics[statistics['player_id']==28398].plot(x='year', y='total_points', kind='scatter')
+
+
 # NOTE: it seems that yahoo only started getting position-level stats in 2014. Might need to backfill with NFL data
 
 # TODO make and "update_db" kinda function that will check for changes and pull new data from Yahoo..

@@ -151,3 +151,21 @@ plt.ylabel('Team Nickname')
 plt.savefig("figures/draft_grade_heatmap.png")
 plt.show()
 
+
+import pandas as pd
+import seaborn as sns
+df = pd.read_csv("test.csv")
+df['differential'] = df['points_rank'] - df['draft_rank']
+
+sns.scatterplot(df, x='points_rank', y='draft_rank', hue='position')
+
+sns.scatterplot(df, x='position', y='differential')
+
+sns.lineplot(df, x='draft_rank', y='differential', hue='position')
+
+df[df['points_rank'] == df['draft_rank']]
+
+df[df['position']=='RB']
+
+# NOTE I want to think of some metric that captures how good someone did in a draft.
+

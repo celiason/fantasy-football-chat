@@ -132,24 +132,88 @@ GROUP BY p.name
 ORDER BY rank DESC
 ;
 
--- Positional ranks by season
--- SELECT SUM(total_points), RANK() OVER (PARTITION BY position, year ORDER BY SUM(total_points) DESC)
--- FROM statistics
-WITH season_pts AS (
-    SELECT p.eligible_positions, p.player_id, p.name, w.year, ROUND(SUM(total_points)::numeric, 1) points
+-- Positional ranks and draf ranks by season
+-- Idea is to see if #1 picks produce like a #1
+
+-- Create a table with total season points by year, position, and player
+COPY ( WITH season_pts AS (
+    SELECT p.eligible_positions, p.player_id, p.name, w.year,
+            ROUND(SUM(total_points)::numeric, 1) points,
+            CASE
+                WHEN p.eligible_positions LIKE '%RB%' THEN 'RB'
+                WHEN p.eligible_positions LIKE '%WR%' THEN 'WR'
+                WHEN p.eligible_positions LIKE '%TE%' THEN 'TE'
+                WHEN p.eligible_positions LIKE '%DEF%' THEN 'DEF'
+                WHEN p.eligible_positions LIKE '%QB%' THEN 'QB'
+                WHEN p.eligible_positions LIKE '%K%' THEN 'K'
+                ELSE null END AS position
     FROM statistics s
     LEFT JOIN players p
         ON s.player_id = p.player_id
     LEFT JOIN weeks w
         ON s.week_id = w.week_id
     GROUP BY p.player_id, w.year, p.name, p.eligible_positions
-    ORDER BY points DESC
+    -- ORDER BY year ASC
+),
+
+-- Ranks of draft picks in order picked
+drafts AS (
+    SELECT e.year, timestamp, e.player_id, p.name,
+    CASE
+        WHEN p.eligible_positions LIKE '%RB%' THEN 'RB'
+        WHEN p.eligible_positions LIKE '%WR%' THEN 'WR'
+        WHEN p.eligible_positions LIKE '%TE%' THEN 'TE'
+        WHEN p.eligible_positions LIKE '%DEF%' THEN 'DEF'
+        WHEN p.eligible_positions LIKE '%QB%' THEN 'QB'
+        WHEN p.eligible_positions LIKE '%K%' THEN 'K'
+        ELSE null END AS position
+    FROM events e
+    LEFT JOIN players p
+        ON e.player_id = p.player_id
+    WHERE event = 'draft'
+),
+
+draft_ranks AS (
+    SELECT *,
+        RANK() OVER (PARTITION BY year, position ORDER BY timestamp ASC) AS draft_rank
+    FROM drafts    
 )
 
+-- COPY (select * from draft_ranks
+-- limit 250) TO STDOUT;
+
+-- Now we can combine the draft and points ranking tables into a neat summary
+-- Show ranks of draft and points by player
+
+    SELECT s.name, s.year, s.position, s.points, RANK() OVER (PARTITION BY s.year, s.position ORDER BY s.points DESC) AS points_rank,
+    -- SELECT s.name, s.year, s.position, s.points, RANK() OVER (PARTITION BY s.year, position ORDER BY s.points DESC) AS points_rank,
+        draft_rank
+    FROM season_pts s
+    INNER JOIN draft_ranks d
+        ON s.player_id = d.player_id AND s.year = d.year
+    WHERE s.year = 2016
+    ORDER BY draft_rank ASC
+) TO '/Users/chad/github/fantasy_app/test.csv' WITH CSV DELIMITER ',' HEADER;
+
+
+
+-- ;
+
+
+Copy (Select * From foo) To '/tmp/test.csv' With CSV DELIMITER ',' HEADER;
+
+
+-- Another query-
 SELECT *
 FROM season_pts
-WHERE name LIKE '%Gurley%';
+-- WHERE name LIKE '%Brady%'
+WHERE position = 'TE'
+ORDER BY points DESC
+LIMIT 100
+;
 
+
+-- ALTER TABLE statistics ALTER COLUMN rush_yds TYPE real;
 
 SELECT p.name, p.position_type, p.eligible_positions, ROUND(SUM(total_points)::numeric, 0)
 FROM statistics s
