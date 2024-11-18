@@ -10,22 +10,26 @@ import psycopg2
 # Initialize the database
 engine = create_engine('postgresql+psycopg2://chad:password@localhost:5432/football', echo=True)
 
-# Players table
+# We will use this below
 rosters = pd.read_csv("data/rosters.csv")
+
+# Players table
 players = rosters.groupby(['player_id','name']).head(1)
-players = players[['player_id','name','position_type','eligible_positions']].sort_values('player_id')
+players['position'] = players['eligible_positions'].str.extract('(\w+)', expand=False)
+players = players[['player_id','name','position_type','position']].sort_values('player_id')
 players.set_index('player_id', inplace=True)
 players.to_sql('players', engine)
 
 # Events table
 events = pd.read_csv("data/events.csv")
 events.drop('name', axis=1, inplace=True)
+# Only keep add, drop and trades
+events = events[events['trans_type'].isin(['add','drop','trade'])]
+# Rename and pick columns
+events.rename({'trans_type':'type','destination':'team_key'}, axis=1, inplace=True)
 events.index.name = 'event_id'
-print(events.head())
-
-teams
-
-events.to_sql("events", engine)
+events_sql = events[['year','week','timestamp','player_id','source','team_key','type']]
+events_sql.to_sql("transactions", engine)
 
 # Weeks table
 weeks = pd.read_csv("data/weeks.csv")
@@ -34,31 +38,46 @@ weeks['end'] = pd.to_datetime(weeks['end']) + pd.Timedelta('11:59:59')
 weeks.index.name = 'week_id'
 weeks.to_sql("weeks", engine)
 
+# Teams tables
+teams = pd.read_csv("data/teams.csv", index_col=0)
+
 # Managers table
 managers = pd.DataFrame(list(set(teams["nickname"])), columns=['nickname'])
 managers.sort_values('nickname', inplace=True)
 managers.reset_index(inplace=True)
-managers.rename(columns={'index': 'manager_id'}, inplace=True)
+managers_sql = managers.rename(columns={'index': 'manager_id', 'nickname': 'name'})
+managers_sql.set_index('manager_id', inplace=True)
+managers_sql.to_sql("managers", engine)
 
-# Teams tables
-teams = pd.read_csv("data/teams.csv", index_col=0)
-teams = teams.merge(managers, on="nickname")
-teams.reset_index(inplace=True)
-teams.drop('index', axis=1, inplace=True)
+teams = teams.merge(managers.reset_index(), on="nickname")
+# teams.reset_index(inplace=True)
 teams.index.name = 'team_id'
-teams.to_sql("teams", engine)
+teams = teams.rename({'index': 'manager_id'}, axis=1)
+teams_sql = teams[['name','number_of_moves','division_id','draft_grade','year','manager_id']]
+teams_sql.to_sql("teams", engine)
 
-managers.set_index('manager_id', inplace=True)
-managers.to_sql("managers", engine)
+
+# Rosters table
+rosters = rosters.merge(teams, on='team_key', suffixes=['', '_teams'])
+rosters = rosters[['year','week','playoffs','manager_id','player_id','selected_position']]
+rosters.to_sql('rosters', engine)
+
+import numpy as np
 
 # Matchups table
+matchups = pd.read_csv("data/matchups.csv", index_col=0)
 matchups['team_key_winner'] = np.where(matchups['points1'] > matchups['points2'], matchups['team_key1'], matchups['team_key2'])
 matchups['team_key_loser'] = np.where(matchups['points1'] < matchups['points2'], matchups['team_key1'], matchups['team_key2'])
 matchups['points_winner'] = np.where(matchups['points1'] > matchups['points2'], matchups['points1'], matchups['points2'])
 matchups['points_loser'] = np.where(matchups['points1'] < matchups['points2'], matchups['points1'], matchups['points2'])
+matchups = matchups.merge(teams, left_on='team_key_winner', right_on='team_key')
+matchups.rename({'manager_id': 'winning_manager_id'}, axis=1, inplace=True)
+matchups = matchups.merge(teams, left_on='team_key_loser', right_on='team_key')
+matchups.rename({'manager_id': 'losing_manager_id'}, axis=1, inplace=True)
 matchups.reset_index(inplace=True)
 matchups.index.name = 'matchup_id'
-columns = ['year','week','team_key_winner','team_key_loser','points_winner','points_loser']
+columns = ['year_x','week','winning_manager_id','losing_manager_id','points_winner','points_loser']
+
 matchups[columns].to_sql("games", engine)
 
 # Statistics table
@@ -104,7 +123,9 @@ statistics = statistics[columns]
 statistics.index.name = 'stat_id'
 statistics.to_sql('statistics', engine)
 
-
-rosters = pd.read_csv("data/rosters.csv")
-rosters = rosters[['year','week','team_key','player_id','selected_position']]
-rosters.to_sql('rosters', engine)
+# Drafts
+drafts = pd.read_csv("data/drafts.csv", index_col=0)
+# Add manager ID
+drafts = drafts.merge(teams[['team_key','manager_id']], on="team_key")
+drafts = drafts.drop('team_key', axis=1)
+drafts.to_sql("drafts", engine)

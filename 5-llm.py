@@ -23,28 +23,100 @@ Settings.llm = Ollama(
 # Configure embeddings using Hugging Face's pre-trained model
 Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en")
 
-
-def llm_query(question):
-    # first sql llm
-    llm = ChatOllama(model="llama-sql")
-    prompt = ChatPromptTemplate.from_template(" {topic}")
-    # chain
-    chain = prompt | llm | StrOutputParser()
-    # chain invocation
-    sql = chain.invoke({"topic": f"{question}"})
-    sql = re.sub(r'(?:(?<=_) | (?=_))','',sql)
-    # return sql query
-    return sql
-
-llm_query('hi there')
-
 # Create the query engine for natural language SQL querying
 query_engine = NLSQLTableQueryEngine(
     sql_database=db, llm=Settings.llm, response_mode="context"
 )
 
+def llm_query(question, tone='professional'):
+
+    # question = "What manager was involved in the most trades for each year?"
+    
+    prompt = f"""
+
+    Question: {question}
+
+    Respond in a {tone} tone.
+
+    Context:
+
+    Table: transactions
+        event_id - ID of the event
+        year - The NFL year (or season)
+        week - The NFL week
+        timestamp - The timestamp of the event
+        player_id - The player ID
+        source - The source of the player (either a team, or free agent/waiver wire)
+        team_key - The destination of the player (either a team, or free agent/waiver wire)
+        type - Whether a player was drafted, added, dropped, benched, or placed on the active roster
+
+    Table: games
+        matchup_id - ID of the matchup
+        year - The NFL year (or season)
+        week - The NFL week
+        winning_manager_id - The manager ID for the winning team (see managers table)
+        losing_manager_id - The manager ID for the losing team (see managers table)
+        points_winner - How many fantasy points the winner had
+        points_loser - How many fantasy points the loser had
+
+    Table: managers
+        manager_id - Unique ID of the manager
+        name - Nickname (or person name) of the manager
+
+    Table: teams
+        team_key - Unique team key (matches with team_key columns in games table)
+        team_name - Name of the team for a given year and manager
+        division_id - Division a team was in that year
+        draft_grade - Draft grade for a team
+        year - NFL season
+        manager_id - Unique ID of the manager (see managers table)
+
+    Table: players
+        player_id - Unique player ID
+        name - Player name
+        position - Position of the player
+    
+    Table: statistics
+        stat_id - Unique ID for a statistic
+        week_id - ID for the week of the season (see weeks table)
+        player_id - ID of the player (see players table)
+        total_points - Total fantasy points in a week for that player
+        ...
+
+    Table: rosters
+        index - Unique ID
+        year - NFL season/year
+        week - NFL week
+        manager_id - Manager ID (see managers table)
+        player_id - Player ID (see players table)
+        selected_position - Selected position for a player
+
+    Table: drafts
+        index = Unique draft ID
+        pick = Draft pick
+        round = Round of the draft
+        player_id = Player ID selected in a draft
+        year = NFL season
+        manager_id = Manager ID that selected a player in the draft
+
+    Only use the SQL database.
+
+    Don't make up answers if you don't know.
+    Admit you don't know.
+    Be polite.
+
+    Only provide the answer, don't give details about the SQL query.
+
+    """
+
+    response = query_engine.query(prompt)
+
+    # Print the response
+    print(response)
+
+
 # Define a natural language query
-query_str = "How many adds are there in the events table?"
+query_str = "How many adds are there in the transactions table?"
 # There are 3596 adds in the events table.
 
 query_str = "What player was on the most teams? Look at the events table and the players table. Destination is the team key where a player ends up."
@@ -119,93 +191,16 @@ query_str = "Is there a relationship between the number of adds/drops a team mak
 # Execute the query using the engine
 # The title() method ensures the query string matches the capitalization format in the database
 
-def llm_query(question, tone='professional'):
 
-    # question = "What manager was involved in the most trades for each year?"
-    
-    prompt = f"""
+llm_query("What team does Bo manage?")
 
-    Question: {question}
-
-    Respond in a {tone} tone.
-
-    Context:
-
-    Table: events
-        event_id - ID of the event
-        year - The NFL year (or season)
-        week - The NFL week
-        timestamp - The timestamp of the event
-        player_id - The player ID
-        player_source - The source of the player (either a team, or free agent/waiver wire)
-        player_destination - The destination of the player (either a team, or free agent/waiver wire)
-        event - Whether a player was drafted, added, dropped, benched, or placed on the active roster
-        position - The position selected by a manager for that week
-
-    Table: games
-        matchup_id - ID of the matchup
-        year - The NFL year (or season)
-        week - The NFL week
-        team_key_winner - The team key for the winning team (see teams table)
-        team_key_loser - The team key for the losing team (see teams table)
-        points_winner - How many fantasy points the winner had
-        points_loser - How many fantasy points the loser had
-
-    Table: managers
-        manager_id - Unique ID of the manager
-        name - Nickname (or person name) of the manager
-
-    Table: teams
-        team_key - Unique team key (matches with team_key columns in games table)
-        team_name - Name of the team for a given year and manager
-        division_id - Division a team was in that year
-        draft_grade - Draft grade for a team
-        year - NFL season
-        manager_id - Unique ID of the manager (see managers table)
-
-    Table: players
-        player_id - Unique player ID
-        name - Player name
-        position_type - Type of position (offense, defense)
-        eligible_positions - List of eligible positions for that player
-    
-    Table: statistics
-        stat_id - Unique ID for a statistic
-        week_id - ID for the week of the season (see weeks table)
-        player_id - ID of the player (see players table)
-        total_points - Total fantasy points in a week for that player
-
-    Table: rosters
-        roster_id - Unique ID
-        year - NFL season/year
-        week - NFL week
-        team_key - Team key (see teams table)
-        player_id - Player ID (see players table)
-        selected_position - Selected position for a player
-
-    Only use the SQL database.
-
-    Don't make up answers if you don't know.
-    Admit you don't know.
-    Be polite.
-
-    Only provide the answer, don't give details about the SQL query.
-
-    """
-
-    response = query_engine.query(prompt)
-
-    # Print the response
-    print(response)
-
-
-llm_query("What team does manager Bo manage?")
 llm_query("What team does Shane manage?")
+
 llm_query("What team does Chad manage?")
 
-llm_query("What manager had the best draft grade for each year?")
+# llm_query("What manager had the best draft for each NFL season year?")
 
-llm_query("How many games did manager Shane win in 2008?")
+llm_query("How many games did Shane win in 2008?")
 # GOOD: Manager Shane won 11 games in the year 2008.
 
 llm_query("How many games on average did manager Shane win in a year?")
@@ -213,24 +208,33 @@ llm_query("How many games on average did manager Shane win in a year?")
 
 llm_query("Has any manager ever won 13 games in a year? If so, who?")
 
-llm_query("what's the average time a player stays in event_type active? summarize by year.")
-# BAD: -27 days in 2007
+# llm_query("what's the average time a player stays in event_type active? summarize by year.")
+# Based on the provided context and data, I can confirm that yes, there are managers who have won 13 games in a year. The refined list of managers who have achieved this feat is:
+# 1. Andrew
+# 2. Chad
+# 3. Shane
+# 4. Bo
+# 5. Josiah Mclat
+# 6. Aaron
+# 7. Greg
+# 8. Mike
+# 9. Kai
+# 10. David
 
 llm_query("What manager had the most points in 2022?")
-# BAD: no response
+# According to the query results, the manager with the most points in 2022 is Bo, with a total of 1954.71 points.
+
+llm_query("My manager name is Chad. How many games did I win in 2008?")
+
+# ALTER TABLE teams
+# ADD PRIMARY KEY team_key;
 
 
-llm_query("My manager name is Chad. How many games did I win in 2008? (just give me the result, not the SQL query).")
-
-ALTER TABLE teams
-ADD PRIMARY KEY team_key;
-
-
-SELECT game_id,
-    CASE WHEN points_away > points_home THEN team_key_away ELSE team_key_home END AS winner,
-    CASE WHEN points_away > points_home THEN team_key_home ELSE team_key_away END AS loser
-FROM games
-LIMIT 5;
+# SELECT game_id,
+#     CASE WHEN points_away > points_home THEN team_key_away ELSE team_key_home END AS winner,
+#     CASE WHEN points_away > points_home THEN team_key_home ELSE team_key_away END AS loser
+# FROM games
+# LIMIT 5;
 
 # I kept getting a connect error 61
 # figure out I needed to download ollama first
@@ -247,36 +251,46 @@ LIMIT 5;
 ;
 
 
-llm_query("List the players on the roster for manager Chad in week 2 of 2008")
-
-llm_query("What RB had the most total points in 2023? And what team was he on?")
+llm_query("What players (and their positions) were on my roster in week 2 of 2008?")
+# * Eli Manning (QB)
+# * Torry Holt (WR)
+# * Roddy White (WR)
+# * Marion Barber (RB)
+# * Ryan Grant (RB)
+# * Kevin Boss (TE)
+# * Michael Turner (W/R)
+# * Andre Johnson (BN)
+# * Ricky Williams (BN)
+# * Jay Cutler (BN)
+# * Javon Walker (BN)
+# * Matt Leinart (BN)
+# * Jason Hanson (K)
 
 llm_query("What RB had the most total points in 2023?")
 
 llm_query("What WR had the most total points in 2023?")
 
-llm_query("What are the names of the players with the top-3 most total points in 2023? hint: use the statistics table")
-
-llm_query("What manager had the best draft pick in 2023? (i.e., the player drafted had the most total points). Hint: use the statistics table")
+# llm_query("What manager had the best draft pick in 2023? (i.e., the player drafted had the most total points)")
+# doesnt work
 
 llm_query("How many points did the first 10 players drafted score in the 2007 season?")
 
 
+
+
 # Modifying tables programattically
-from sqlalchemy import create_engine
-engine = create_engine('postgresql+psycopg2://chad:password@localhost:5432/football', echo=True)
-connection = engine.connect() 
+# from sqlalchemy import create_engine
+# engine = create_engine('postgresql+psycopg2://chad:password@localhost:5432/football', echo=True)
+# connection = engine.connect() 
   
-table_name = 'events'
+# table_name = 'events'
 
-query = f'ALTER TABLE {table_name} RENAME COLUMN trans_type TO transaction_type;'
-connection.execute(query)
+# query = f'ALTER TABLE {table_name} RENAME COLUMN trans_type TO transaction_type;'
+# connection.execute(query)
 
-query = 'ALTER TABLE teams RENAME COLUMN name TO team_name;'
-connection.execute(query)
-
-
-query = f"ALTER TABLE teams DROP COLUMN nickname;"
-connection.execute(query)
+# query = 'ALTER TABLE teams RENAME COLUMN name TO team_name;'
+# connection.execute(query)
 
 
+# query = f"ALTER TABLE teams DROP COLUMN nickname;"
+# connection.execute(query)
