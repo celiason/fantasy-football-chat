@@ -203,3 +203,55 @@ select * from events where year = 2008 and week = 2 and event = 'active';
 
 select *, LAG() OVER (PARTITION BY year ORDER BY )
 
+
+
+
+WITH player_status_history AS (
+    SELECT
+        destination_mid,
+        player_id,
+        type,
+        year,
+        week,
+        ROW_NUMBER() OVER (PARTITION BY destination_mid, player_id ORDER BY year, week) AS row_num
+    FROM
+        transactions
+    WHERE
+        type = 'active'
+),
+active_players_per_week AS (
+    SELECT
+        manager_id,
+        player_id,
+        year,
+        week
+    FROM
+        player_status_history
+    WHERE
+        row_num = 1
+    UNION ALL
+    SELECT
+        pt.manager_id,
+        pt.player_id,
+        pt.year,
+        pt.week
+    FROM
+        player_transactions pt
+    JOIN player_status_history psh
+        ON pt.manager_id = psh.manager_id
+        AND pt.player_id = psh.player_id
+    WHERE
+        pt.status = 'active'
+        AND pt.year >= psh.year
+        AND pt.week > psh.week
+)
+SELECT
+    manager_id,
+    player_id,
+    year,
+    week
+FROM
+    active_players_per_week
+ORDER BY
+    manager_id, year, week, player_id;
+
