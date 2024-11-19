@@ -37,7 +37,7 @@ ORDER BY s.year, games_won DESC;
 
 
 
-CREATE VIEW drafts AS
-...
-;
+-- CREATE VIEW drafts AS
+-- ...
+-- ;
 

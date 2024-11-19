@@ -174,3 +174,12 @@ df[df['position']=='TE'].sort_values('points', ascending=False)
 
 # NOTE I want to think of some metric that captures how good someone did in a draft.
 
+
+import pandas as pd
+import seaborn as sns
+df = pd.read_csv("wins_moves.csv")
+
+sns.pairplot(df, hue='year', palette='tab10')
+
+
+df[['roster_moves','adds','games_won','total_points']].corr()
