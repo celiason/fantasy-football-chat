@@ -22,13 +22,36 @@ players.to_sql('players', engine)
 
 # Events table
 events = pd.read_csv("data/events.csv")
-events.drop('name', axis=1, inplace=True)
-# Only keep add, drop and trades
-events = events[events['trans_type'].isin(['add','drop','trade'])]
+
+# Replace team names with manager IDs
+teams_lookup = teams.set_index('team_key')['manager_id'].to_dict()
+events['source_mid'] = events['source'].replace(teams_lookup)
+events['destination_mid'] = events['destination'].replace(teams_lookup)
+
 # Rename and pick columns
-events.rename({'trans_type':'type','destination':'team_key'}, axis=1, inplace=True)
+events.rename({'trans_type':'type'}, axis=1, inplace=True)
 events.index.name = 'event_id'
-events_sql = events[['year','week','timestamp','player_id','source','team_key','type']]
+
+events['source'] = np.where(events['source_mid'].isin(['freeagents','waivers']), events['source_mid'], 'team')
+events['destination'] = np.where(events['destination_mid'].isin(['freeagents','waivers']), events['destination_mid'], 'team')
+
+events['source'].value_counts()
+events['destination'].value_counts()
+
+events['source_mid'] = events['source_mid'].apply(lambda x: np.nan if isinstance(x, str) else x)
+events['destination_mid'] = events['destination_mid'].apply(lambda x: np.nan if isinstance(x, str) else x)
+
+events['source_mid'] = events['source_mid'].astype('Int64')
+events['destination_mid'] = events['destination_mid'].astype('Int64')
+
+events['source_mid'].value_counts()
+events['destination_mid'].value_counts()
+
+events_sql = events[['year','week','timestamp','player_id','source_mid','destination_mid','source','destination','type']]
+events_sql = events_sql.reset_index(drop=True)
+events_sql.index.name = 'tid'
+print(events_sql.head())
+
 events_sql.to_sql("transactions", engine)
 
 # Weeks table
@@ -40,22 +63,31 @@ weeks.to_sql("weeks", engine)
 
 # Teams tables
 teams = pd.read_csv("data/teams.csv", index_col=0)
+# Fix some missing manager names
+teams.loc[(teams['name'] == 'Rubber City Galoshes'), 'nickname'] = 'matt_harbert'
+teams.loc[(teams['name'] == 't-t-totally dudes'), 'nickname'] = 'josiah mclat'
+teams.loc[(teams['name'] == 'The Woebegones'), 'nickname'] = 'Charles'
+teams.loc[(teams['name'] == "Doinel's Destroyers!"), 'nickname'] = 'Rusty Blevins'
+teams.loc[(teams['name'] == 'The Five Toes'), 'nickname'] = 'Justin Smith'
+teams.loc[(teams['name'] == 'Browns West'), 'nickname'] = 'Bodad'
+
+# Check it worked
+len(teams[teams['nickname'] == '--hidden--']) == 0
 
 # Managers table
 managers = pd.DataFrame(list(set(teams["nickname"])), columns=['nickname'])
 managers.sort_values('nickname', inplace=True)
 managers.reset_index(inplace=True)
+managers = managers.drop('index', axis=1)
+managers.index.name = 'manager_id'
 managers_sql = managers.rename(columns={'index': 'manager_id', 'nickname': 'name'})
-managers_sql.set_index('manager_id', inplace=True)
 managers_sql.to_sql("managers", engine)
 
+# Now we'll add manager ID to teams
 teams = teams.merge(managers.reset_index(), on="nickname")
-# teams.reset_index(inplace=True)
 teams.index.name = 'team_id'
-teams = teams.rename({'index': 'manager_id'}, axis=1)
 teams_sql = teams[['name','number_of_moves','division_id','draft_grade','year','manager_id']]
 teams_sql.to_sql("teams", engine)
-
 
 # Rosters table
 rosters = rosters.merge(teams, on='team_key', suffixes=['', '_teams'])
@@ -66,18 +98,34 @@ import numpy as np
 
 # Matchups table
 matchups = pd.read_csv("data/matchups.csv", index_col=0)
-matchups['team_key_winner'] = np.where(matchups['points1'] > matchups['points2'], matchups['team_key1'], matchups['team_key2'])
-matchups['team_key_loser'] = np.where(matchups['points1'] < matchups['points2'], matchups['team_key1'], matchups['team_key2'])
-matchups['points_winner'] = np.where(matchups['points1'] > matchups['points2'], matchups['points1'], matchups['points2'])
-matchups['points_loser'] = np.where(matchups['points1'] < matchups['points2'], matchups['points1'], matchups['points2'])
-matchups = matchups.merge(teams, left_on='team_key_winner', right_on='team_key')
-matchups.rename({'manager_id': 'winning_manager_id'}, axis=1, inplace=True)
-matchups = matchups.merge(teams, left_on='team_key_loser', right_on='team_key')
-matchups.rename({'manager_id': 'losing_manager_id'}, axis=1, inplace=True)
-matchups.reset_index(inplace=True)
-matchups.index.name = 'matchup_id'
-columns = ['year_x','week','winning_manager_id','losing_manager_id','points_winner','points_loser']
+# Sanity check
+any(matchups['team_key1'] == matchups['team_key2'])
+# Merges with team
+matchups = matchups.merge(teams[['team_key','manager_id','year']], left_on='team_key1', right_on='team_key')
+matchups.rename({'manager_id': 'manager_id1'}, axis=1, inplace=True)
+matchups = matchups.merge(teams[['team_key','manager_id']], left_on='team_key2', right_on='team_key')
+matchups.rename({'manager_id': 'manager_id2'}, axis=1, inplace=True)
 
+matchups['winner_manager_id'] = np.where(matchups['points1'] > matchups['points2'], matchups['manager_id1'], matchups['manager_id2'])
+# Account for ties
+matchups['winner_manager_id'] = np.where(matchups['points1'] == matchups['points2'], np.nan, matchups['winner_manager_id'])
+# Set to int64
+matchups['winner_manager_id'] = matchups['winner_manager_id'].astype('Int64')
+
+matchups['winner_points'] = np.where(matchups['points1'] > matchups['points2'], matchups['points1'], matchups['points2'])
+# Account for ties
+matchups['winner_points'] = np.where(matchups['points1'] == matchups['points2'], np.nan, matchups['winner_points'])
+
+
+# We had 5 ties
+# matchups[matchups['winner_manager_id']=='']
+matchups.reset_index(inplace=True)
+matchups.index.name = 'game_id'
+columns = ['year','week','manager_id1','manager_id2','points1','points2','winner_manager_id']
+# Sanity check again
+any(matchups['manager_id1'] == matchups['manager_id2'])
+
+# Push to database
 matchups[columns].to_sql("games", engine)
 
 # Statistics table
@@ -90,13 +138,13 @@ statistics.columns = statistics.columns.str.replace(' ', '_')
 statistics.columns = statistics.columns.str.replace('-', '_')
 statistics.columns = statistics.columns.str.replace('+', '_plus')
 statistics.columns = statistics.columns.str.lower()
-statistics.columns
-print(statistics.head())
 
+# Merge some overlapping columns
 statistics['fgm_0_19'] = statistics['fgm_0_19'].fillna(statistics['fg_0_19'])
 statistics['fgm_20_29'] = statistics['fgm_20_29'].fillna(statistics['fg_20_29'])
 statistics['fgm_30_39'] = statistics['fgm_30_39'].fillna(statistics['fg_30_39'])
 
+# Drops
 statistics.drop(['fg_0_19','fg_20_29','fg_30_39'], axis=1, inplace=True)
 
 # Look at missing values by column
@@ -108,6 +156,8 @@ msno.bar(statistics)
 import seaborn as sns
 sns.histplot(data=statistics, x='total_points', bins=20)
 # lots of zeros, makes sense. some negatives.
+
+# Final columns in the table
 columns = ['week_id', 'player_id', 'total_points', 'pass_yds', 'pass_td', 'int',
        'rush_yds', 'rush_td', 'rec', 'rec_yds', 'rec_td', 'ret_yds', 'ret_td',
        '2_pt', 'fum_lost', 'fum_ret_td', 'fg_40_49',
@@ -121,7 +171,7 @@ columns = ['week_id', 'player_id', 'total_points', 'pass_yds', 'pass_td', 'int',
 
 statistics = statistics[columns]
 statistics.index.name = 'stat_id'
-statistics.to_sql('statistics', engine)
+statistics.to_sql('stats', engine)
 
 # Drafts
 drafts = pd.read_csv("data/drafts.csv", index_col=0)
