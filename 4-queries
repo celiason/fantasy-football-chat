@@ -208,16 +208,17 @@ select *, LAG() OVER (PARTITION BY year ORDER BY )
 
 WITH player_status_history AS (
     SELECT
-        destination_mid,
+        destination_mid AS manager_id,
         player_id,
         type,
         year,
         week,
         ROW_NUMBER() OVER (PARTITION BY destination_mid, player_id ORDER BY year, week) AS row_num
     FROM
-        transactions
+        events
     WHERE
         type = 'active'
+    ORDER BY year, week, destination_mid, row_num
 ),
 active_players_per_week AS (
     SELECT
@@ -231,19 +232,19 @@ active_players_per_week AS (
         row_num = 1
     UNION ALL
     SELECT
-        pt.manager_id,
-        pt.player_id,
-        pt.year,
-        pt.week
+        e.destination_mid,
+        e.player_id,
+        e.year,
+        e.week
     FROM
-        player_transactions pt
+        events e
     JOIN player_status_history psh
-        ON pt.manager_id = psh.manager_id
-        AND pt.player_id = psh.player_id
+        ON e.destination_mid = psh.manager_id
+        AND e.player_id = psh.player_id
     WHERE
-        pt.status = 'active'
-        AND pt.year >= psh.year
-        AND pt.week > psh.week
+        e.type = 'active'
+        AND e.year >= psh.year
+        AND e.week > psh.week
 )
 SELECT
     manager_id,
@@ -253,5 +254,5 @@ SELECT
 FROM
     active_players_per_week
 ORDER BY
-    manager_id, year, week, player_id;
+    year, week, manager_id;
 

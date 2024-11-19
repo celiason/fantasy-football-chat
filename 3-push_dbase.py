@@ -47,12 +47,14 @@ events['destination_mid'] = events['destination_mid'].astype('Int64')
 events['source_mid'].value_counts()
 events['destination_mid'].value_counts()
 
-events_sql = events[['year','week','timestamp','player_id','source_mid','destination_mid','source','destination','type']]
+events.groupby('year')['type'].value_counts()
+
+events_sql = events[['year','week','timestamp','player_id','source_mid','destination_mid','source','destination','type','selected_position']]
 events_sql = events_sql.reset_index(drop=True)
 events_sql.index.name = 'tid'
 print(events_sql.head())
 
-events_sql.to_sql("transactions", engine)
+events_sql.to_sql("events", engine)
 
 # Weeks table
 weeks = pd.read_csv("data/weeks.csv")
