@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from HierarchiaPy import Hierarchia
+import seaborn as sns
+from datetime import datetime
 
 # Load data
 matchups = pd.read_csv("data/matchups.csv", index_col=0)
@@ -15,13 +17,6 @@ teams = pd.read_csv("data/teams.csv", index_col=0)
 
 picks = teams.loc[teams['nickname'].str.contains('Chad'), 'team_key'].tolist()
 
-teams.head()
-transactions.head()
-drafts.head()
-matchups.head()
-
-
-from datetime import datetime
 
 # Convert from ms timestamp to dates
 transactions['date'] = transactions['timestamp'].transform(datetime.fromtimestamp)
@@ -152,34 +147,36 @@ plt.savefig("figures/draft_grade_heatmap.png")
 plt.show()
 
 
-import pandas as pd
-import seaborn as sns
-df = pd.read_csv("test.csv")
-df['differential'] = df['draft_rank'] - df['points_rank']
 
-sns.scatterplot(df, x='points_rank', y='draft_rank', hue='position')
+# Looking at the relationship between point ranks and draft pick
 
-sns.scatterplot(df, x='position', y='differential')
+ranks = pd.read_csv("ranks.csv")
 
-sns.lineplot(df, x='draft_rank', y='differential', hue='position')
+ranks[ranks['position']=='RB'].sort_values('points', ascending=False)
 
-df_rb_top20 = df[(df["draft_rank"] < 20) & (df["position"] == "RB")]
+ranks['differential'] = ranks['pick'] - ranks['points_rank']
 
-sns.barplot(df_rb_top20, x='draft_rank', y='differential')
+sns.scatterplot(ranks, x='points_rank', y='pick', hue='position')
 
-df[df['points_rank'] == df['draft_rank']]
+sns.scatterplot(ranks, x='position', y='differential')
 
-df[df['position']=='RB']
-df[df['position']=='TE'].sort_values('points', ascending=False)
+sns.lineplot(ranks, x='pick', y='differential', hue='position')
+
+ranks_rb_top20 = ranks[(ranks["pick"] < 50) & (ranks["position"] == "RB")]
+
+sns.barplot(ranks_rb_top20, x='pick', y='differential')
+
+ranks[ranks['position']=='TE'].sort_values('points', ascending=False)
+
+
 
 # NOTE I want to think of some metric that captures how good someone did in a draft.
 
 
-import pandas as pd
-import seaborn as sns
 df = pd.read_csv("wins_moves.csv")
 
 sns.pairplot(df, hue='year', palette='tab10')
 
 
 df[['roster_moves','adds','games_won','total_points']].corr()
+
