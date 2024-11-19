@@ -8,8 +8,14 @@ from langchain_community.chat_models import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
+# from langchain_community.utilities.sql_database import SQLDatabase
+# from langchain_ollama import OllamaLLM
 
-db = SQLDatabase.from_uri('postgresql+psycopg2://chad:password@localhost:5432/football')
+
+db_uri = "postgresql+psycopg2://chad:password@localhost:5432/football"
+
+# Support views!!
+db = SQLDatabase.from_uri(db_uri, view_support=True)
 
 db.get_usable_table_names()
 
@@ -28,10 +34,75 @@ query_engine = NLSQLTableQueryEngine(
     sql_database=db, llm=Settings.llm, response_mode="context"
 )
 
-def llm_query(question, tone='professional'):
+# Function to run an LLM query
+def llm_query(question, tone='professional', schema=True):
 
-    # question = "What manager was involved in the most trades for each year?"
-    
+    if schema:
+        schema_context = """
+            Table: transactions
+            event_id - ID of the event
+            year - The NFL year (or season)
+            week - The NFL week
+            timestamp - The timestamp of the event
+            player_id - The player ID
+            source - The source of the player (either a team, or free agent/waiver wire)
+            team_key - The destination of the player (either a team, or free agent/waiver wire)
+            type - Whether a player was drafted, added, dropped, benched, or placed on the active roster
+
+        Table: games
+            matchup_id - ID of the matchup
+            year - The NFL year (or season)
+            week - The NFL week
+            manager_id1 - The manager ID for the team 1
+            manager_id2 = The manager ID for the team 2
+            points1 = Points for manager_id1
+            points2 = Points for manager_id2
+            winner_manager_id = The manager ID of the winning team (NA if it's a tie)
+            winner_points - How many fantasy points the winner had
+
+        Table: managers
+            manager_id - Unique ID of the manager
+            name - Nickname (or person name) of the manager
+
+        Table: teams
+            team_key - Unique team key (matches with team_key columns in games table)
+            team_name - Name of the team for a given year and manager
+            division_id - Division a team was in that year
+            draft_grade - Draft grade for a team
+            year - NFL season
+            manager_id - Unique ID of the manager (see managers table)
+
+        Table: players
+            player_id - Unique player ID
+            name - Player name
+            position - Position of the player
+        
+        Table: statistics
+            stat_id - Unique ID for a statistic
+            week_id - ID for the week of the season (see weeks table)
+            player_id - ID of the player (see players table)
+            total_points - Total fantasy points in a week for that player
+            ...
+
+        Table: rosters
+            index - Unique ID
+            year - NFL season/year
+            week - NFL week
+            manager_id - Manager ID (see managers table)
+            player_id - Player ID (see players table)
+            selected_position - Selected position for a player
+
+        Table: drafts
+            index = Unique draft ID
+            pick = Draft pick
+            round = Round of the draft
+            player_id = Player ID selected in a draft
+            year = NFL season
+            manager_id = Manager ID that selected a player in the draft
+        """
+    else:
+        schema_context = ""
+
     prompt = f"""
 
     Question: {question}
@@ -40,72 +111,13 @@ def llm_query(question, tone='professional'):
 
     Context:
 
-    Table: transactions
-        event_id - ID of the event
-        year - The NFL year (or season)
-        week - The NFL week
-        timestamp - The timestamp of the event
-        player_id - The player ID
-        source - The source of the player (either a team, or free agent/waiver wire)
-        team_key - The destination of the player (either a team, or free agent/waiver wire)
-        type - Whether a player was drafted, added, dropped, benched, or placed on the active roster
+    {schema_context}
 
-    Table: games
-        matchup_id - ID of the matchup
-        year - The NFL year (or season)
-        week - The NFL week
-        winning_manager_id - The manager ID for the winning team (see managers table)
-        losing_manager_id - The manager ID for the losing team (see managers table)
-        points_winner - How many fantasy points the winner had
-        points_loser - How many fantasy points the loser had
-
-    Table: managers
-        manager_id - Unique ID of the manager
-        name - Nickname (or person name) of the manager
-
-    Table: teams
-        team_key - Unique team key (matches with team_key columns in games table)
-        team_name - Name of the team for a given year and manager
-        division_id - Division a team was in that year
-        draft_grade - Draft grade for a team
-        year - NFL season
-        manager_id - Unique ID of the manager (see managers table)
-
-    Table: players
-        player_id - Unique player ID
-        name - Player name
-        position - Position of the player
-    
-    Table: statistics
-        stat_id - Unique ID for a statistic
-        week_id - ID for the week of the season (see weeks table)
-        player_id - ID of the player (see players table)
-        total_points - Total fantasy points in a week for that player
-        ...
-
-    Table: rosters
-        index - Unique ID
-        year - NFL season/year
-        week - NFL week
-        manager_id - Manager ID (see managers table)
-        player_id - Player ID (see players table)
-        selected_position - Selected position for a player
-
-    Table: drafts
-        index = Unique draft ID
-        pick = Draft pick
-        round = Round of the draft
-        player_id = Player ID selected in a draft
-        year = NFL season
-        manager_id = Manager ID that selected a player in the draft
-
-    Only use the SQL database.
+    Only use the SQL database provided.
 
     Don't make up answers if you don't know.
     Admit you don't know.
     Be polite.
-
-    Only provide the answer, don't give details about the SQL query.
 
     """
 
@@ -114,83 +126,7 @@ def llm_query(question, tone='professional'):
     # Print the response
     print(response)
 
-
-# Define a natural language query
-query_str = "How many adds are there in the transactions table?"
-# There are 3596 adds in the events table.
-
-query_str = "What player was on the most teams? Look at the events table and the players table. Destination is the team key where a player ends up."
-# Response:
-# Robbie Gould is the player who has been on the most teams with a total of 23 teams.
-
-
-query_str = "IN what month are the most players added? How has that changed by year?"
-# Response (cool!):
-# According to the data, the month with the most players added varies from year to year. Here's a breakdown of the top months for each year:
-
-# * 2007: September (456) and October (652)
-# * 2008: September (523), October (480), and November (323)
-# * 2014: September (510), October (389), and December (144)
-# * 2015: November (535), October (466), and September (444)
-# * 2016: October (528), November (450), and September (396)
-# * 2018: October (507), November (453), and December (311)
-# * 2019: December (381), October (434), and November (414)
-# * 2020: November (540), October (520), and December (455)
-# * 2021: November (589), October (462), and September (406)
-# * 2022: November (508), October (501), and December (322)
-
-# It's clear that the months with the most players added vary significantly from year to year. If you're looking for a consistent pattern, it seems that October and November tend to be the top months across multiple years.
-
-query_str = "Who was the earlist player drafted in each year? (look at the events table and the players table)"
-
-
-query_str = "Give me a table with total adds, drops, and trades for each year."
-# Here's a synthesized response based on the query results:
-
-# **Total Adds, Drops, and Trades for Each Year**
-
-# Here is the breakdown of total adds, drops, and trades for each year from 2007 to 2023:
-
-# | Year | Total Adds | Total Drops | Total Trades |
-# | --- | --- | --- | --- |
-# | 2007 | 365 | 370 | 44 |
-# | 2008 | 272 | 272 | 12 |
-# | 2014 | 254 | 251 | 26 |
-# | 2015 | 325 | 320 | 37 |
-# | 2016 | 314 | 306 | 17 |
-# | 2018 | 367 | 363 | 26 |
-# | 2019 | 356 | 355 | 9 |
-# | 2020 | 345 | 336 | 4 |
-# | 2021 | 352 | 352 | 3 |
-# | 2022 | 335 | 331 | 6 |
-# | 2023 | 311 | 314 | 0 |
-
-# This table shows the total number of adds, drops, and trades for each year from 2007 to 2023. The years are listed in chronological order, with the most recent year (2023) at the bottom
-
-
-query_str = "Is there a relationship between the number of adds/drops a team makes and the number of wins?"
-# Nope. Gave a query, but it isn't right. Team_id does not match up with team_key1 or team_key2
-# NOTE: I might want to rethink the database structure to make it more clear.
-
-# SELECT 
-#   t.name, 
-#   COUNT(m.matchup_id) AS num_wins, 
-#   COUNT(DISTINCT e.event_id) AS num_moves
-# FROM 
-#   teams t
-#   JOIN matchups m ON t.team_id = m.team_key1 OR t.team_id = m.team_key2
-#   JOIN events e ON e.player_id IN (m.team_key1, m.team_key2)
-# WHERE 
-#   e.trans_type IN ('add', 'drop')
-# GROUP BY 
-#   t.name
-# ORDER BY 
-#   num_wins DESC;
-
-
-# Execute the query using the engine
-# The title() method ensures the query string matches the capitalization format in the database
-
+# Some examples (and associated responses):
 
 llm_query("What team does Bo manage?")
 
@@ -267,16 +203,29 @@ llm_query("What players (and their positions) were on my roster in week 2 of 200
 # * Jason Hanson (K)
 
 llm_query("What RB had the most total points in 2023?")
+# The RB with the most total points in 2023 is Christian McCaffrey, with a 
+# total of 409.7 fantasy points.
 
-llm_query("What WR had the most total points in 2023?")
+llm_query("What WR had the most total points in 2020?")
+# According to the provided SQL query results, the wide receiver (WR) with the 
+# most total points in 2020 is Davante Adams, who accumulated a total of 355.7 
+# fantasy points during that season.
 
-# llm_query("What manager had the best draft pick in 2023? (i.e., the player drafted had the most total points)")
+# llm_query("What manager had the best draft pick in 2023? (i.e., the player 
+# drafted had the most total points)")
 # doesnt work
 
 llm_query("How many points did the first 10 players drafted score in the 2007 season?")
 
+llm_query("What is Chad's record when he plays Shane?")
 
+llm_query("What is Chad's record against Shane?")
+# 
 
+llm_query("What is Shane's record against Chad?")
+
+llm_query("How many times has Chad beaten Shane?")
+# 81 times.. haha. Oops.
 
 # Modifying tables programattically
 # from sqlalchemy import create_engine
@@ -294,3 +243,60 @@ llm_query("How many points did the first 10 players drafted score in the 2007 se
 
 # query = f"ALTER TABLE teams DROP COLUMN nickname;"
 # connection.execute(query)
+
+
+llm_query("How many adds are there in the transactions table?")
+# There are 3,596 adds in the events table.
+
+llm_query("What player was on the most rosters?")
+# Based on the query results, it appears that the player who was on the most rosters is "Los Angeles", with a total of 194 rosters. This information is based on the analysis of the provided SQL database and the given question.
+
+llm_query("IN what month are the most players added? How has that changed by year?")
+# Response (cool!):
+# According to the data, the month with the most players added varies from year to year. Here's a breakdown of the top months for each year:
+
+# * 2007: September (456) and October (652)
+# * 2008: September (523), October (480), and November (323)
+# * 2014: September (510), October (389), and December (144)
+# * 2015: November (535), October (466), and September (444)
+# * 2016: October (528), November (450), and September (396)
+# * 2018: October (507), November (453), and December (311)
+# * 2019: December (381), October (434), and November (414)
+# * 2020: November (540), October (520), and December (455)
+# * 2021: November (589), October (462), and September (406)
+# * 2022: November (508), October (501), and December (322)
+
+# It's clear that the months with the most players added vary significantly from year to year. If you're looking for a consistent pattern, it seems that October and November tend to be the top months across multiple years.
+
+
+llm_query("Give me a table with total adds, drops, and trades for each year.")
+# Here's a synthesized response based on the query results:
+
+# **Total Adds, Drops, and Trades for Each Year**
+
+# Here is the breakdown of total adds, drops, and trades for each year from 2007 to 2023:
+
+# | Year | Total Adds | Total Drops | Total Trades |
+# | --- | --- | --- | --- |
+# | 2007 | 365 | 370 | 44 |
+# | 2008 | 272 | 272 | 12 |
+# | 2014 | 254 | 251 | 26 |
+# | 2015 | 325 | 320 | 37 |
+# | 2016 | 314 | 306 | 17 |
+# | 2018 | 367 | 363 | 26 |
+# | 2019 | 356 | 355 | 9 |
+# | 2020 | 345 | 336 | 4 |
+# | 2021 | 352 | 352 | 3 |
+# | 2022 | 335 | 331 | 6 |
+# | 2023 | 311 | 314 | 0 |
+
+# This table shows the total number of adds, drops, and trades for each year from 2007 to 2023. The years are listed in chronological order, with the most recent year (2023) at the bottom
+
+llm_query("What is the most points anyone ever scored in a game? What manager was it and in what year?")
+
+llm_query("Give me a table of RBs and the number of rosters they've been on, also the last year they were on a roster.")
+
+llm_query("Who had the best record in 2023?")
+
+llm_query("Give me a list of teams with best record for each year")
+

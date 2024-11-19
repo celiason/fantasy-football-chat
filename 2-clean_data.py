@@ -6,10 +6,18 @@ from datetime import datetime
 # Load data
 matchups = pd.read_csv("data/matchups.csv", index_col=0)
 
+########################################################################
+# Drafts
+########################################################################
+
 drafts = pd.read_csv("data/drafts.csv", index_col=0)
 drafts.reset_index(inplace=True)
 drafts.drop(['index'], axis=1, inplace=True)
 drafts['source'] = 'freeagents'
+
+########################################################################
+# Transactions
+########################################################################
 
 transactions = pd.read_csv("data/transactions.csv", index_col=0)
 
@@ -22,11 +30,19 @@ transactions.reset_index(inplace=True)
 
 teams = pd.read_csv("data/teams.csv", index_col=0)
 
+########################################################################
+# Rosters
+########################################################################
+
 rosters = pd.read_csv("data/rosters.csv", index_col=0)
 rosters = rosters.sort_values(['year','week'])
 rosters.reset_index(inplace=True)
 rosters.drop('index', axis=1, inplace=True)
 rosters['status'] = np.where(rosters['selected_position']=='BN', 'bench', 'active')
+
+########################################################################
+# Weeks
+########################################################################
 
 weeks = pd.read_csv("data/weeks.csv")
 weeks['start'] = pd.to_datetime(weeks['start'])
@@ -37,9 +53,6 @@ weeks['end'] = pd.to_datetime(weeks['end']) + pd.Timedelta('11:59:59')
 len(set(rosters['player_id']))  # 1090
 
 # This function will create a path for a player (e.g., bench -> active -> bench)
-
-# df = rosters[(rosters['year']==2007) & (rosters['player_id'] == 5109)]
-
 # Function that defines paths a player takes in a given year
 def get_path(df):
     df.sort_values('week', inplace=True)
@@ -47,7 +60,10 @@ def get_path(df):
     breakpoint_indices = breakpoints[breakpoints.diff().ne(0)].index.tolist()
     return df.loc[breakpoint_indices]
 
+########################################################################
 # Setup the moves table
+########################################################################
+
 moves = rosters.groupby(['year','player_id']).apply(get_path)
 moves.drop(['player_id','year'], axis=1, inplace=True)
 moves.reset_index(inplace=True)
@@ -80,7 +96,6 @@ print(moves[(moves['player_id']==549) & (moves['year'] == 2007)].head())
 print(moves[(moves['player_id']==100010) & (moves['year'] == 2007)].head())
 
 
-
 print(transactions[['timestamp','player_id','source','destination','trans_type']].head(10))
 
 
@@ -90,14 +105,15 @@ print(transactions[['timestamp','player_id','source','destination','trans_type']
 # model with survival models for Bio?? LTV (lifetime value) I think is the model Rafael talked
 # about when he was at Instacart
 
+########################################################################
 # Working with the drafts table
+########################################################################
 
 # Get first transaction times by year
 first_trans_time = transactions.groupby('year')['timestamp'].min()
-first_trans_time.keys()
-first_trans_time.values
 
 # TODO: make sure all drafted players should have transition from FA -> BN
+
 
 drafts['timestamp'] = pd.NaT
 idx = drafts.groupby('year')['pick'].idxmax()
@@ -169,9 +185,10 @@ events.isna().sum() # cool, no NAs!
 
 # Compare sizes
 len(rosters) # 32907
-len(moves) # 10356 (about 1/3 the size of the original rosters table)
+len(moves) # 11330 (about 1/3 the size of the original rosters table)
 len(drafts) # 1985
 len(transactions) # 7429
+
 len(events) # 20744
 
 len(events) / (len(rosters) + len(moves) + len(drafts) + len(transactions))
@@ -179,53 +196,16 @@ len(events) / (len(rosters) + len(moves) + len(drafts) + len(transactions))
 
 
 # Unique players table
-rosters = pd.read_csv("data/rosters.csv")
 players = rosters.groupby(['player_id','name']).head(1)
 players = players[['player_id','name','position_type','eligible_positions']].sort_values('player_id')
-
-# COOL!!! working.
-# events = events.merge(players, left_on='player_id', right_on='player_id')
-
-# Derrick henry time!
-# events[events['player_id']==29279]
-
-
-# When is first draft pick each year?
-# events.loc[events.groupby('year')['timestamp'].idxmin()]
 
 
 # TODO get player stats from Yahoo (this will take a while)
 # NOTE: need to loop by week, year, for each player_id
 
 
-
-# TODO output as a database use SQLalchemy(?)
-
-
-# Sample query, what was my starting roster in week 1 of 2007?
-my_query = "name == 'The Owls' and year == 2007"
-my_team_key = teams.query(my_query)['team_key'].values[0]
-
-my_query = f"week == 1 and trans_type == 'active' and year == 2007 and destination == '{my_team_key}'"
-
-my_query = f"week == 2 and year == 2007 and destination == '{my_team_key}'"
-events.query(my_query)
-
-testing = events[(events['source'] == my_team_key) | (events['destination'] == my_team_key)].sort_values([])
-testing
-testing.to_csv("data/testing5.csv")
-
-events[events['trans_type']=='active']
-
-
-# tmp = rosters.merge(teams, on='team_key', suffixes=["", "_teams"])
-
-# tmp[(tmp["status"]=="active") & (tmp["week"]==1) & (tmp["year"]==2007) & (tmp["nickname"]=="Chad")]
-# tmp[(tmp["status"]=="active") & (tmp["week"]==2) & (tmp["year"]==2007) & (tmp["nickname"]=="Chad")]
-
 # TODO might need to see about having a category for BN-Active and Active moves to diff position
 
-events.to_csv("data/events.csv", index=False)
 
 
 # Visualize the data!
@@ -242,3 +222,6 @@ print(weeks.head())
 print(players.head())
 print(teams.head())
 
+
+# Output to file
+events.to_csv("data/events.csv", index=False)
