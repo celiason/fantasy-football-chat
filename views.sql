@@ -1,7 +1,7 @@
 -- VIEWS!!!
 
-CREATE VIEW records AS
-
+-- Create STANDINGS view (regular season only):
+CREATE VIEW standings AS
 SELECT 
     s.year,
     s.manager_id,
@@ -20,6 +20,7 @@ FROM (
         winner_manager_id,
         game_id
     FROM games
+    WHERE playoffs = 'no'
     UNION ALL
     SELECT 
         year,
@@ -29,6 +30,7 @@ FROM (
         winner_manager_id,
         game_id
     FROM games
+    WHERE playoffs = 'no'
 ) s
 LEFT JOIN managers m
     ON s.manager_id = m.manager_id
@@ -36,8 +38,88 @@ GROUP BY s.year, s.manager_id, m.name
 ORDER BY s.year, games_won DESC;
 
 
-
 -- CREATE VIEW drafts AS
 -- ...
 -- ;
 
+-- see database table sizes
+
+-- before
+SELECT pg_size_pretty( pg_total_relation_size('rosters') ); -- 3496 kB
+SELECT pg_size_pretty( pg_total_relation_size('trans_test') ); -- 1048 kB
+SELECT pg_size_pretty( pg_total_relation_size('drafts') ); -- 248 kB
+
+-- after
+SELECT pg_size_pretty( pg_total_relation_size('events') ); -- 2936 kB
+
+-- 100 * ((4792 - 2936) / 4792) = 38.7% reduction in size
+
+-- 
+SELECT e.player_id
+FROM events e
+WHERE e.year = 2007 and e.week = 1 and e.player_id = 6770
+  AND e.type = 'active' -- Player was active in week 1
+  AND NOT EXISTS (         -- Exclude players who became inactive between week 1 and week 4
+      SELECT 1
+      FROM events e_other
+      WHERE e_other.player_id = e.player_id
+        AND e_other.week > 1 AND e_other.week <= 1
+        -- AND e_other.status != 'active'
+  );
+
+
+-- still trying to get rosters here...
+drop view test;
+
+create view test as
+    select * from events
+    where year = 2023 and (source_mid = 2 or destination_mid = 2) and week > 0;
+
+
+-- Create ROSTERS view:
+WITH status_intervals AS (
+    -- Step 1: Calculate intervals of activity based on status changes
+    SELECT 
+        player_id,
+        week AS start_week,
+        source_mid,
+        destination_mid,
+        selected_position AS pos,
+        LEAD(week, 1, NULL) OVER (PARTITION BY player_id ORDER BY timestamp) - 1 AS end_week,
+        type
+    FROM events
+),
+active_periods AS (
+    -- Step 2: Filter only active intervals
+    SELECT 
+        player_id,
+        start_week,
+        COALESCE(end_week, (SELECT MAX(week) FROM events)) AS end_week,
+        type,
+        pos
+    FROM status_intervals
+    WHERE type = 'active'
+),
+roster AS (
+    -- Step 3: Generate all active weeks for each player
+    SELECT 
+        a.player_id,
+        w.week,
+        a.type,
+        a.pos
+    FROM active_periods a
+    JOIN (SELECT DISTINCT week FROM events) w
+      ON w.week BETWEEN a.start_week AND a.end_week
+)
+-- Final Step: Output the player roster by week
+SELECT
+    week, player_id AS num_players, pos
+FROM roster
+-- GROUP BY week
+ORDER BY week;
+
+
+-- Other helpful stuff
+select *, lag(type,1,NULL) over (partition by player_id) as last_status, lead(week,1,NULL) over (partition by player_id) - 1 as next  from test order by timestamp;
+
+select * from test where player_id = 34095;

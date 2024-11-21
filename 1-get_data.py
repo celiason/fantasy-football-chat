@@ -15,6 +15,10 @@ from tqdm import tqdm
 # Load my functions
 from src.utils import get_league, pull_trade_details, pull_managers, get_transactions, get_rosters
 
+lg = get_league(2018)
+dir(lg)
+lg.matchups()
+
 # pprint(lg.matchups())
 
 # Pull all Slow Learners league years
