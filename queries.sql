@@ -220,3 +220,48 @@ FROM
 ORDER BY
     year, week, manager_id;
 
+
+
+-- llm_query("What was the best free agent transaction ever made? (in terms of points that player gained for a manager/team)")
+
+-- IDs of added players by season and manager
+WITH adds AS(
+    select season_id, player_id, destination AS manager_id
+    from transactions t
+    left join seasons s
+        on t.season_id = s.season_id
+    left join weeks w
+        -- on ...
+    where type = 'add'
+)
+-- ,
+select * from adds limit 10;
+
+-- how many times this player was in an active roster for that team that year
+roster_weeks AS (select week_id, a.season_id, a.player_id, a.manager_id
+from adds a
+inner join rosters r
+    on a.manager_id = r.manager_id and a.player_id = r.player_id
+where selected_position != 'BN'
+)
+select count(*) from roster_weeks;
+
+select s.year, p.player, manager_id, SUM(total_points) points
+from roster_weeks r
+left join stats st
+    on r.week_id = st.week_id and r.player_id = st.player_id
+left join players p
+    on r.player_id = p.player_id
+left join seasons s
+    on r.season_id = s.season_id
+group by p.player, manager_id, s.year
+order by points DESC
+;
+
+
+
+-- total points scored by that player for that team
+
+
+select * from adds limit 10;
+
