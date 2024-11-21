@@ -311,3 +311,6 @@ llm_query("Who had the best record in 2023?")
 
 llm_query("Give me a list of teams with best record for each year")
 
+
+llm_query("What was the best free agent transaction ever made? (in terms of points that player gained for a manager/team)")
+

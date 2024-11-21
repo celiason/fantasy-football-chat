@@ -44,6 +44,91 @@ ORDER BY seasons.year, games_won DESC;
 
 -- CREATE VIEW 
 
+CREATE VIEW turnover AS (
+
+with weekly_changes as (
+    select manager_id, w.week, s.year, player_id, selected_position AS current_pos,
+    lag(selected_position) over(partition by manager_id, player_id order by week) AS last_pos
+    from rosters r
+    left join weeks w
+        on r.week_id = w.week_id
+    left join seasons s
+        on w.season_id = s.season_id
+),
+turnover as (
+    select manager_id, year, week, sum(case when current_pos = last_pos then 1 else 0 end) as weekly_turnover
+    from weekly_changes
+    where current_pos != 'BN' and last_pos != 'BN'
+    group by manager_id, week, year
+)
+
+select manager, week, year, weekly_turnover
+    from turnover
+    left join managers m
+        on turnover.manager_id = m.manager_id
+    order by weekly_turnover desc
+
+);
+
+-- Compare roster turnover (bn/active moves) to number of seasons played
+with manager_seasons as (
+select manager, count(*) as num_seasons from standings group by manager
+)
+select t.manager, SUM(weekly_turnover) turnover, MAX(num_seasons) seasons
+from turnover t
+left join manager_seasons m
+    on t.manager = m.manager
+group by t.manager
+order by turnover desc
+;
+
+
+WITH rost AS (
+    SELECT manager_id, player_id, selected_position AS position, w.week, s.year
+    FROM rosters r
+    LEFT JOIN weeks w
+        ON r.week_id = w.week_id
+    LEFT JOIN seasons s
+        ON s.season_id = w.season_id
+),
+PreviousWeekRoster AS (
+    SELECT 
+        r1.manager_id,
+        r1.week AS current_week,
+        r2.week AS previous_week,
+        r1.player_id,
+        r1.position
+    FROM 
+        rost r1
+    LEFT JOIN 
+        rost r2
+    ON 
+        r1.manager_id = r2.manager_id 
+        AND r1.player_id = r2.player_id 
+        AND r1.week = r2.week + 1
+),
+Turnover AS (
+    SELECT 
+        manager_id,
+        current_week,
+        COUNT(CASE WHEN previous_week IS NULL THEN 1 END) AS players_added,
+        COUNT(CASE WHEN current_week IS NULL THEN 1 END) AS players_removed
+    FROM 
+        PreviousWeekRoster
+    GROUP BY 
+        manager_id, current_week
+)
+SELECT 
+    manager_id,
+    current_week,
+    players_added,
+    players_removed,
+    (players_added + players_removed) AS total_turnover
+FROM 
+    Turnover
+ORDER BY 
+    manager_id, current_week;
+
 
 
 

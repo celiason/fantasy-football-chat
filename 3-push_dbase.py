@@ -49,7 +49,7 @@ weeks = weeks.merge(rost_nondup, on=['year','week'], how='left')
 weeks = weeks[weeks['playoffs'].notna()]
 # Add season ID
 weeks = weeks.merge(seasons.reset_index(), on='year')
-weeks.index.name = 'wid'
+weeks.index.name = 'week_id'
 # Want 1-based index
 weeks.index = weeks.index+1
 

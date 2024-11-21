@@ -17,6 +17,10 @@ pull stats from...?
 
 
 
+## Optimizing database structures
+
+The `rosters` table contains information about the roster, or the set of NFL players on a given person's team in a given week. You can imagine that sometimes a manager will leave a player in an active position all year. In that case, we would be recording data for each week (say, 16 weeks) when really all we need is 1 data point. The idea here is to look at transitions between states (for example, between an active roster spot and a bench spot). This is stored in a table called `events`. Doing this results in a __38% savings in storage__, although the SQL queries are more challenging to write given the dynamic nature of the `events` table. This is similar 
+
 ## Connecting the database to a LLM
 
 I might want to connect an LLM to SQL database
@@ -29,6 +33,10 @@ Sample questions we could ask the LLM:
 5. How often does the person with the most points win it all?
 
 ## Understanding league engagement
+
+Possible metrics that could be useful in understanding manager engagement are roster turnover (the xx) and the overall number of moves (or transactions) made by a player.
+
+## Bringing primate dominance hierarchies to fantasy football
 
 Here's a plot that shows overall "dominance" (a measure of how often someone beats other people, and the strength of the opponent in terms of number of wins they themselves have). Someone who wins a lot of games against winless teams would have a lower David's score than someone who wins a lot of games against teams that beat other teams a lot.
 
