@@ -40,44 +40,45 @@ def llm_query(question, tone='professional', schema=True):
     if schema:
         schema_context = """
             Table: transactions
-            event_id - ID of the event
-            year - The NFL year (or season)
-            week - The NFL week
+            transaction_id - ID of the transaction
+            season_id - The NFL season
             timestamp - The timestamp of the event
             player_id - The player ID
-            source - The source of the player (either a team, or free agent/waiver wire)
-            team_key - The destination of the player (either a team, or free agent/waiver wire)
-            type - Whether a player was drafted, added, dropped, benched, or placed on the active roster
+            status - Whether the transaction was successful
+            source - The source of the player (either a manager ID, or free agent/waiver wire)
+            team_key - The destination of the player (either a manager ID, or free agent/waiver wire)
+            type - Whether a player was drafted, added, or dropped
 
         Table: games
-            matchup_id - ID of the matchup
-            year - The NFL year (or season)
-            week - The NFL week
+            game_id - ID of the game
+            season_id - The season ID
+            week_id - The week ID
+            playoffs - Whether it's the playoffs
             manager_id1 - The manager ID for the team 1
             manager_id2 = The manager ID for the team 2
             points1 = Points for manager_id1
             points2 = Points for manager_id2
             winner_manager_id = The manager ID of the winning team (NA if it's a tie)
-            winner_points - How many fantasy points the winner had
 
         Table: managers
             manager_id - Unique ID of the manager
-            name - Nickname (or person name) of the manager
+            manager - Nickname (or person name) of the manager
 
         Table: teams
-            team_key - Unique team key (matches with team_key columns in games table)
-            team_name - Name of the team for a given year and manager
+            team_id - Unique team key (matches with team_key columns in games table)
+            team - Name of the team for a given year and manager
+            number_of_moves - Number of transactions/moves made
             division_id - Division a team was in that year
             draft_grade - Draft grade for a team
-            year - NFL season
             manager_id - Unique ID of the manager (see managers table)
+            season_id - Season ID
 
         Table: players
             player_id - Unique player ID
-            name - Player name
+            player - Player name
             position - Position of the player
         
-        Table: statistics
+        Table: stats
             stat_id - Unique ID for a statistic
             week_id - ID for the week of the season (see weeks table)
             player_id - ID of the player (see players table)
@@ -85,20 +86,28 @@ def llm_query(question, tone='professional', schema=True):
             ...
 
         Table: rosters
-            index - Unique ID
-            year - NFL season/year
-            week - NFL week
+            roster_id - Unique roster slot ID
+            week_id - NFL week ID
+            season_id - NFL season ID
             manager_id - Manager ID (see managers table)
             player_id - Player ID (see players table)
             selected_position - Selected position for a player
 
         Table: drafts
-            index = Unique draft ID
+            draft_id = Unique draft ID
             pick = Draft pick
             round = Round of the draft
             player_id = Player ID selected in a draft
-            year = NFL season
             manager_id = Manager ID that selected a player in the draft
+            season_id = NFL season
+        
+        Table: standings
+            year - Year
+            manager - manager name
+            games_played - Total games played that year (not including playoffs)
+            games_won - Total games won
+            total_points - Total points gained
+            total_points_allowed - Total points allowed
         """
     else:
         schema_context = ""
@@ -125,6 +134,8 @@ def llm_query(question, tone='professional', schema=True):
 
     # Print the response
     print(response)
+
+
 
 # Some examples (and associated responses):
 
@@ -157,7 +168,7 @@ llm_query("Has any manager ever won 13 games in a year? If so, who?")
 # 9. Kai
 # 10. David
 
-llm_query("What manager had the most points in 2022?")
+llm_query("What manager had the most total points in 2022? (look at standings)")
 # According to the query results, the manager with the most points in 2022 is Bo, with a total of 1954.71 points.
 
 llm_query("My manager name is Chad. How many games did I win in 2008?")
@@ -218,13 +229,12 @@ llm_query("What WR had the most total points in 2020?")
 llm_query("How many points did the first 10 players drafted score in the 2007 season?")
 
 llm_query("What is Chad's record when he plays Shane?")
+# 9-7
 
-llm_query("What is Chad's record against Shane?")
-# 
+# llm_query("What is Shane's record when he plays Chad?")
+# not working
 
-llm_query("What is Shane's record against Chad?")
-
-llm_query("How many times has Chad beaten Shane?")
+# llm_query("How many times has Chad beaten Shane?")
 # 81 times.. haha. Oops.
 
 # Modifying tables programattically
@@ -246,7 +256,7 @@ llm_query("How many times has Chad beaten Shane?")
 
 
 llm_query("How many adds are there in the transactions table?")
-# There are 3,596 adds in the events table.
+# There are 3631 adds
 
 llm_query("What player was on the most rosters?")
 # Based on the query results, it appears that the player who was on the most rosters is "Los Angeles", with a total of 194 rosters. This information is based on the analysis of the provided SQL database and the given question.
@@ -293,6 +303,7 @@ llm_query("Give me a table with total adds, drops, and trades for each year.")
 # This table shows the total number of adds, drops, and trades for each year from 2007 to 2023. The years are listed in chronological order, with the most recent year (2023) at the bottom
 
 llm_query("What is the most points anyone ever scored in a game? What manager was it and in what year?")
+# 
 
 llm_query("Give me a table of RBs and the number of rosters they've been on, also the last year they were on a roster.")
 

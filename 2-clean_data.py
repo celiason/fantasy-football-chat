@@ -130,11 +130,6 @@ drafts['week'] = int(0)
 # check that The interpolation worked (should be ramps up for each year)
 drafts.plot(x='timestamp', y='pick')
 
-
-
-
-
-
 # Some renaming before we concatenate
 rosters['trans_type'] = rosters['destination']
 rosters['timestamp'] = pd.to_datetime(rosters['timestamp'])
@@ -162,12 +157,13 @@ transactions['week'] = transactions['week'].astype(int)
 drafts['selected_position'] = 'BN'
 transactions['selected_position'] = np.where(transactions["trans_type"].isin(['add','trade']), 'BN', '')
 
-# Concatenate
+# Concatenate rosters, transactions, and drafts
 events = pd.concat([rosters,transactions,drafts])
 events.sort_values('timestamp', inplace=True)
 column_order = ['year','week','timestamp','player_id','source','destination','trans_type','selected_position']
 events = events[column_order]
 events.reset_index(inplace=True, drop=True)
+
 print(events.head())
 
 # Counts of position selections
@@ -176,11 +172,39 @@ events['selected_position'].value_counts()
 # Check for NAs
 events.isna().sum() # cool, no NAs!
 
+# There was a problem with this player.
+# figured out what was happening- in week 10 he was dropped before going active
+# apparently in that year we could drop someone right after they played..?
+rosters[(rosters['player_id']==6781) & (rosters['year']==2007)]
+events[(events['player_id']==6781) & (events['year']==2007)]
+transactions[(transactions['player_id']==6781) & (transactions['year']==2007)]
+
+
+# last event can't be drop by a team before making that player active
+# here is a function that adjusts the active time to a second before the drop time
+# if a drop occurs right before a player going active
+# NOTE: I'm currently setting the active time as the last minute of the last day of the NFL week
+# I could also probably just link up the actual game time for a pid
+# nfl database maybe?
+def adjust_active_time(df):
+    # Reset the index
+    df = df.reset_index()
+     # Iterate through the rows of the DataFrame
+    for i in range(1, len(df)):  # Start from 1 to safely access i-1
+        if df.loc[i, 'trans_type'] == 'active' and df.loc[i-1, 'trans_type'] == 'drop':
+            # Adjust the timestamp for 'active'
+            df.loc[i, 'timestamp'] = df.loc[i-1, 'timestamp'] - pd.Timedelta(seconds=1)
+    return df
+
+events = events.groupby(['year','player_id','week']).apply(adjust_active_time)
+events = events.sort_values('timestamp')
+events = events.drop(['index','year','week','player_id'], axis=1)
+events = events.reset_index()
 
 # This function will create a path for a player (e.g., bench -> active -> bench)
 # Function that defines paths a player takes in a given year
 def get_path(df):
-    df.sort_values('week', inplace=True)
+    df.sort_values('timestamp', inplace=True)
     breakpoints = df['selected_position'].ne(df['selected_position'].shift(1)).cumsum()
     breakpoint_indices = breakpoints[breakpoints.diff().ne(0)].index.tolist()
     return df.loc[breakpoint_indices]
@@ -192,14 +216,16 @@ def get_path(df):
 # print(df)
 # print(df.loc[breakpoint_indices])
 
+# rosters/slots? - need manager ID, player ID, week ID, selected position
+
 # Apply the function
 moves = events.groupby(['year','player_id']).apply(get_path)
 moves.drop(['player_id','year'], axis=1, inplace=True)
 moves.reset_index(inplace=True)
 moves
 
-len(events)
-len(moves)
+len(events) # 42321
+len(moves) # 19854
 
 # NOTE: how can i see about database efficiency for transaction stream vs static weekly roster tables?
 
@@ -208,15 +234,9 @@ len(moves)
 #------------------------------------------------------------------------
 
 len(rosters) # 32907
-len(moves) # 12201 (about 1/3 the size of the original rosters table)
+len(moves) # 19854 (about 1/3 the size of the original rosters table)
 len(drafts) # 1985
 len(transactions) # 7429
-
-len(events) # 21615
-
-len(events) / (len(rosters) + len(moves) + len(drafts) + len(transactions))
-# 39.6% of the original amount of data, so that's cool
-
 
 # Unique players table
 players = rosters.groupby(['player_id','name']).head(1)
@@ -247,8 +267,6 @@ print(players.head())
 print(teams.head())
 
 
-# Output to file
-moves.to_csv("data/events.csv", index=False)
 
 
 transactions[(transactions['year']==2023) & (transactions['player_id'] == 100024)]
@@ -261,4 +279,9 @@ moves[(moves['year']==2023) & (moves['player_id'] == 100024)]
 # week 13 started
 
 get_path(rosters[(rosters['year']==2023) & (rosters['player_id'] == 100024)])
+
+
+
+# Output to file
+moves.to_csv("data/events.csv", index=False)
 
