@@ -6,18 +6,18 @@ from datetime import datetime
 # Load data
 matchups = pd.read_csv("data/matchups.csv", index_col=0)
 
-########################################################################
+#------------------------------------------------------------------------
 # Drafts
-########################################################################
+#------------------------------------------------------------------------
 
 drafts = pd.read_csv("data/drafts.csv", index_col=0)
 drafts.reset_index(inplace=True)
 drafts.drop(['index'], axis=1, inplace=True)
 drafts['source'] = 'freeagents'
 
-########################################################################
+#------------------------------------------------------------------------
 # Transactions
-########################################################################
+#------------------------------------------------------------------------
 
 transactions = pd.read_csv("data/transactions.csv", index_col=0)
 
@@ -27,22 +27,31 @@ transactions['timestamp'] = transactions['timestamp'].transform(datetime.fromtim
 # Sorting by date for later
 transactions.sort_values('timestamp', inplace=True)
 transactions.reset_index(inplace=True)
+print(transactions.head())
+
+#------------------------------------------------------------------------
+# Teams
+#------------------------------------------------------------------------
 
 teams = pd.read_csv("data/teams.csv", index_col=0)
 
-########################################################################
+#------------------------------------------------------------------------
 # Rosters
-########################################################################
+#------------------------------------------------------------------------
 
 rosters = pd.read_csv("data/rosters.csv", index_col=0)
 rosters = rosters.sort_values(['year','week'])
 rosters.reset_index(inplace=True)
 rosters.drop('index', axis=1, inplace=True)
-rosters['status'] = np.where(rosters['selected_position']=='BN', 'bench', 'active')
 
-########################################################################
+# NOTE: there was a problem here. IR players aren't active.
+rosters['status'] = np.where(rosters['selected_position'].isin(['BN','IR']), 'inactive', 'active')
+rosters['status'].value_counts()
+rosters['selected_position'].value_counts()
+
+#------------------------------------------------------------------------
 # Weeks
-########################################################################
+#------------------------------------------------------------------------
 
 weeks = pd.read_csv("data/weeks.csv")
 weeks['start'] = pd.to_datetime(weeks['start'])
@@ -52,22 +61,15 @@ weeks['end'] = pd.to_datetime(weeks['end']) + pd.Timedelta('11:59:59')
 # See how many unique players we've used over the years
 len(set(rosters['player_id']))  # 1090
 
-# This function will create a path for a player (e.g., bench -> active -> bench)
-# Function that defines paths a player takes in a given year
-def get_path(df):
-    df.sort_values('week', inplace=True)
-    breakpoints = df['selected_position'].ne(df['selected_position'].shift(1)).cumsum()
-    breakpoint_indices = breakpoints[breakpoints.diff().ne(0)].index.tolist()
-    return df.loc[breakpoint_indices]
-
-########################################################################
+#------------------------------------------------------------------------
 # Setup the moves table
-########################################################################
+#------------------------------------------------------------------------
 
-moves = rosters.groupby(['year','player_id']).apply(get_path)
-moves.drop(['player_id','year'], axis=1, inplace=True)
-moves.reset_index(inplace=True)
-moves['source'] = moves.groupby(['year','player_id'])['status'].shift(1)
+rosters = rosters.merge(weeks[['year','week','end']], on=['year','week'])
+rosters.rename({'end': 'timestamp', 'status': 'destination'}, axis=1, inplace=True)
+rosters['timestamp'] = rosters['timestamp'] - pd.Timedelta(seconds = 1)
+
+# print(moves[(moves['year']==2023) & (moves['player_id']==100024)])
 
 # cool codes!
 # BUG 
@@ -84,20 +86,6 @@ moves['source'] = moves.groupby(['year','player_id'])['status'].shift(1)
 # I think i figured this out- I just set the active/bench assignment to a minute
 # before the end of a week.
 
-# Adding pseudo-timestamp for moves (using the LAST day of the NFL week)
-moves = moves.merge(weeks[['year','week','end']], on=['year','week'])
-moves.rename({'end': 'timestamp', 'status': 'destination'}, axis=1, inplace=True)
-moves['timestamp'] = moves['timestamp'] - pd.Timedelta(seconds = 1)
-
-# Look at derrick henry for fun
-print(moves[(moves['player_id']==29279) & (moves['year'] == 2023)].head())
-print(moves[(moves['player_id']==549) & (moves['year'] == 2007)].head())
-
-print(moves[(moves['player_id']==100010) & (moves['year'] == 2007)].head())
-
-
-print(transactions[['timestamp','player_id','source','destination','trans_type']].head(10))
-
 
 # I can sell this as...
 # I'm essentially modeling the life cycle of a player. this can be applied to customer
@@ -105,9 +93,9 @@ print(transactions[['timestamp','player_id','source','destination','trans_type']
 # model with survival models for Bio?? LTV (lifetime value) I think is the model Rafael talked
 # about when he was at Instacart
 
-########################################################################
+#------------------------------------------------------------------------
 # Working with the drafts table
-########################################################################
+#------------------------------------------------------------------------
 
 # Get first transaction times by year
 first_trans_time = transactions.groupby('year')['timestamp'].min()
@@ -142,11 +130,16 @@ drafts['week'] = int(0)
 # check that The interpolation worked (should be ramps up for each year)
 drafts.plot(x='timestamp', y='pick')
 
+
+
+
+
+
 # Some renaming before we concatenate
-moves['trans_type'] = moves['destination']
-moves['timestamp'] = pd.to_datetime(moves['timestamp'])
-moves['source'] = moves['team_key']
-moves['destination'] = moves['team_key']
+rosters['trans_type'] = rosters['destination']
+rosters['timestamp'] = pd.to_datetime(rosters['timestamp'])
+rosters['source'] = rosters['team_key']
+rosters['destination'] = rosters['team_key']
 
 # Function to check if a date is in any range
 def get_week(date, df_ranges):
@@ -160,39 +153,69 @@ transactions['week'] = transactions['timestamp'].apply(lambda x: get_week(x, df_
 # Fix weeks that are NA (should be = 0, meaning "preseason")
 idx = transactions['week'].isna()
 transactions.loc[idx, 'week'] = 0
+
+# Convert to integer
 transactions['week'] = transactions['week'].astype(int)
 
 # Now concatenate into a big transitions dataframe
 # We need 3 tables: moves, transactions, and drafts
 drafts['selected_position'] = 'BN'
 transactions['selected_position'] = np.where(transactions["trans_type"].isin(['add','trade']), 'BN', '')
-# moves['selected_position']
 
-events = pd.concat([moves,transactions,drafts])
+# Concatenate
+events = pd.concat([rosters,transactions,drafts])
 events.sort_values('timestamp', inplace=True)
 column_order = ['year','week','timestamp','player_id','source','destination','trans_type','selected_position']
 events = events[column_order]
-events.reset_index(inplace=True)
-events.drop('index', axis=1, inplace=True)
-
+events.reset_index(inplace=True, drop=True)
 print(events.head())
+
+# Counts of position selections
 events['selected_position'].value_counts()
 
 # Check for NAs
 events.isna().sum() # cool, no NAs!
 
+
+# This function will create a path for a player (e.g., bench -> active -> bench)
+# Function that defines paths a player takes in a given year
+def get_path(df):
+    df.sort_values('week', inplace=True)
+    breakpoints = df['selected_position'].ne(df['selected_position'].shift(1)).cumsum()
+    breakpoint_indices = breakpoints[breakpoints.diff().ne(0)].index.tolist()
+    return df.loc[breakpoint_indices]
+
+# BUG: fix this
+# df = rosters[(rosters['year']==2023) & (rosters['player_id']==100024)]
+# breakpoints = df['selected_position'].ne(df['selected_position'].shift(1)).cumsum()
+# breakpoint_indices = breakpoints[breakpoints.diff().ne(0)].index.tolist()
+# print(df)
+# print(df.loc[breakpoint_indices])
+
+# Apply the function
+moves = events.groupby(['year','player_id']).apply(get_path)
+moves.drop(['player_id','year'], axis=1, inplace=True)
+moves.reset_index(inplace=True)
+moves
+
+len(events)
+len(moves)
+
 # NOTE: how can i see about database efficiency for transaction stream vs static weekly roster tables?
 
+#------------------------------------------------------------------------
 # Compare sizes
+#------------------------------------------------------------------------
+
 len(rosters) # 32907
-len(moves) # 11330 (about 1/3 the size of the original rosters table)
+len(moves) # 12201 (about 1/3 the size of the original rosters table)
 len(drafts) # 1985
 len(transactions) # 7429
 
-len(events) # 20744
+len(events) # 21615
 
 len(events) / (len(rosters) + len(moves) + len(drafts) + len(transactions))
-# 38.7% of the original amount of data, so that's cool
+# 39.6% of the original amount of data, so that's cool
 
 
 # Unique players table
@@ -207,8 +230,9 @@ players = players[['player_id','name','position_type','eligible_positions']].sor
 # TODO might need to see about having a category for BN-Active and Active moves to diff position
 
 
-
-# Visualize the data!
+#------------------------------------------------------------------------
+# Visualize the data
+#------------------------------------------------------------------------
 
 import seaborn as sns
 plotdf = events.groupby('year')['trans_type'].value_counts().reset_index(name='count')
@@ -224,4 +248,17 @@ print(teams.head())
 
 
 # Output to file
-events.to_csv("data/events.csv", index=False)
+moves.to_csv("data/events.csv", index=False)
+
+
+transactions[(transactions['year']==2023) & (transactions['player_id'] == 100024)]
+rosters[(rosters['year']==2023) & (rosters['player_id'] == 100024)]
+moves[(moves['year']==2023) & (moves['player_id'] == 100024)]
+
+# week 9 active
+# week 10 dropped
+# week 13 picked back up (by same team.. I think that's where the prob is)
+# week 13 started
+
+get_path(rosters[(rosters['year']==2023) & (rosters['player_id'] == 100024)])
+
