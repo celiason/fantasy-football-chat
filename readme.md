@@ -1,4 +1,8 @@
-# Fantasy
+# Fantasy football chatbot
+
+<!-- ![](assets/dalle_turtle.jpg) -->
+![](assets/dalle_logo2.jpg)
+<!-- ![](assets/dalle_logo3.webp) -->
 
 ## Introduction
 
@@ -10,20 +14,40 @@ dominance metrics (head-to-head, like they do in college football)
 top 6 teams go to playoffs
 pull stats from...?
 
-## Cleaning the data
+## Terminology
 
+There are a bunch of terms in the fantasy football world that need to be defined before we get into the details.
 
-## Building the PostgreSQL database
+1. league - This is a group of managers
+2. manager - This is a person that picks players to be on a team
+3. player - An NFL player that gains points for a manager in a given week
+4. roster - A set of players on a given week
+5. team - A group of rosters throughtout a season associated with a given manager. The team name can vary week-to-week. 
+6. statistic - A number that describes an NFL metric (yards gained, touchdown scored, etc.)
+7. week - A week in an NFL season
+8. season - A set of managers playing together in a given year
 
+## Challenges with sports data
 
+<!-- talk about database normalization maybe (1NF, 2NF, 3NF compliant) -->
 
-## Optimizing database structures
+In early 2000, Yahoo allowed managers to drop players immediately after they played a game. Since yahoo doesn't provide the timestamp for when a player played on a roster in a given week, I had to use the end of the NFL week as the timestamp. This ensured that the player would not be dropped _before_ playing that week. However, in cases where a manager dropped the player earlier in the week, the events table would say that the player was only active the week before. So, to deal with this challenge, I wrote a function in python that scans through the events table and adjusts the drop time to the first minute of the following week. This way, if a player is active, he will show up that way for the given week and then be dropped for the following week.
 
-The `rosters` table contains information about the roster, or the set of NFL players on a given person's team in a given week. You can imagine that sometimes a manager will leave a player in an active position all year. In that case, we would be recording data for each week (say, 16 weeks) when really all we need is 1 data point. The idea here is to look at transitions between states (for example, between an active roster spot and a bench spot). This is stored in a table called `events`. Doing this results in a __38% savings in storage__, although the SQL queries are more challenging to write given the dynamic nature of the `events` table. This is similar 
+## Optimizing database structure
+
+I used a combination of SQLalchemy and PostgreSQL to build the database. We have three tables that have to do with players and managers: `rosters`, `transactions`, and `drafts`. One challenge I faced was how to efficiently store all the data.
+
+The `rosters` table contains information about the roster, or the set of NFL players on a given person's team in a given week. You can imagine that sometimes a manager will leave a player in an active position all year. In that case, we would be recording data for each week (say, 16 weeks) when really all we need is 1 data point.
+
+A better idea is to look at transitions between states (for example, between an active roster spot and a bench spot). This is stored in a table called `events`. Doing this results in a __31% reduction in storage__, although the SQL queries are more challenging to write given the dynamic nature of the `events` table. A benefit of this approach is that I can easily calculate time-dependent features like like "roster turnover" as the amount of time a player has been in a position.
+
+Here is a graph of the different types of events (actives, drops, adds, inactives, drafts, and trades) as time series plot:
+
+![](figures/transaction_type_yearly_count.png)
 
 ## Connecting the database to a LLM
 
-I might want to connect an LLM to SQL database
+I might want to connect an LLM to SQL database. I did this using langchain.
 
 Sample questions we could ask the LLM:
 1. What are some sample trades I could make?
@@ -38,7 +62,11 @@ Possible metrics that could be useful in understanding manager engagement are ro
 
 ## Bringing primate dominance hierarchies to fantasy football
 
-Here's a plot that shows overall "dominance" (a measure of how often someone beats other people, and the strength of the opponent in terms of number of wins they themselves have). Someone who wins a lot of games against winless teams would have a lower David's score than someone who wins a lot of games against teams that beat other teams a lot.
+Below is a matrix showing the overall number of times a team beat another team. For example, if we look at "shane" we see that he beat bo 10 times but only beat chad 7 times. By contrast, chad beat shane 9 times. So his record against shane is 9-7. Pretty cool!
+
+![](figures/dominance_matrix.png)
+
+We can go a step further and borrow from the scientific literature on folks that study primate social structures and dominance. A useful metric is the "David's Score." Someone who wins a lot of games against winless teams would have a lower David's score than someone who wins a lot of games against teams that beat other teams a lot. Here's a plot that shows overall "dominance" (i.e., David's score) for each time across the 17 yearas the league has been in existence.
 
 ![](figures/davids.png)
 
