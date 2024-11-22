@@ -195,7 +195,7 @@ llm_query("My manager name is Chad. How many games did I win in 2008?")
 # JOIN teams t ON m.team_key1 = t.team_key OR m.team_key2 = t.team_key
 # JOIN managers ma ON t.manager_id = ma.manager_id
 # WHERE ma.nickname = 'Chad' AND m.year = 2008 AND points1 > points2
-;
+# ;
 
 
 llm_query("What players (and their positions) were on my roster in week 2 of 2008?")

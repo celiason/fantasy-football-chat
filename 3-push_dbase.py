@@ -372,62 +372,15 @@ from sqlalchemy import text
 
 db = engine.connect()
 
-
 # running queries from .SQL files
 # psql -d football -f query.sql
 # query = open("views.sql").read()
-
+query = """select * from slots;"""
 df = pd.read_sql_query(text(query), con=db)
-df
-
-df.drop_duplicates(inplace=True) # BUG fix this
 
 # Checks - all these should be the same!
-counts = df.groupby(['year','manager_id','week'])['player_id'].count() # OK first week good, others not..
-counts = counts.unstack()
+counts = df.groupby(['year','manager','week'])['player'].count() # OK first week good, others not..
 counts.plot() # pretty good, a few weirdos with +/- 1 player on a week, but that might be normal
-
 # NOTE this is working for most weeks, but there a few cases when the drop 
 # time is before the last time of the NFL week (11:59 PM last day of week) and 
 # I need to figure out what to do with that...
-
-# TODO Prob need to go to...the rosters table? Match up manager, years, weeks
-# If active that week, then set the drop time to a second before midnight?
-# as long as drop is the last event..
-
-
-
-
-# Check week 16
-df[df['week']==16].sort_values('selected_position')
-tmp = rosters[(rosters['year']==2008) & (rosters['manager_id']==3) & (rosters['week']==16)]
-tmp[['year','manager_id','player_id','week','selected_position']]
-
-print(events[(events['year']==2008) & (events['player_id']==5900)])
-weeks[(weeks['year']==2008)& (weeks['week']==3)]
-tmp = rosters[(rosters['year']==2008) & (rosters['manager_id']==3) & (rosters['week']==3)]
-tmp[['year','manager_id','player_id','week','selected_position']]
-# I see the problem but how to fix it..
-# I think the thing is that if a player is only started for 1 week,
-# i need to set the 
-
-
-df.groupby(['manager_id','week'])['selected_position'].count()
-
-
-# i want to do a join now where week is in range from week -> (next-1)
-
-df = pd.read_sql_query(text(query), con=db)
-
-
-print(df[(df['destination_manager_id']==17) & (df['type']=='active')].head())
-
-roster = df[(df['destination_manager_id']==17) & (df['type']=='active')]
-len(roster)
-print(roster)
-print(roster.head())
-roster[roster['next'].isna()]
-
-print(df[['year','week','destination_manager_id','player_id','selected_position','next']])
-
-

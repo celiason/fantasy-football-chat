@@ -59,7 +59,9 @@ matchups.reset_index(inplace=True)
 matchups['matchup'] = matchups.groupby(['year','week']).cumcount() + 1
 
 # This melts the data frame- really useful 'stubs' argument
-matchups_melted = pd.wide_to_long(matchups, axis=1), stubnames=['points','team_key'], i=['year','week','matchup'], j='team_id')
+
+matchups_melted = pd.wide_to_long(matchups, axis=1, stubnames=['points','team_key'], i=['year','week','matchup'], j='team_id')
+
 # matchups_melted.pivot_table(values=['points'], index=['week'], columns='team')
 
 total_points = matchups_melted.groupby(['year','team_key'])['points'].sum()

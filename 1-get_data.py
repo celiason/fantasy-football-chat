@@ -13,11 +13,12 @@ from collections import ChainMap
 from tqdm import tqdm
 
 # Load my functions
-from src.utils import get_league, pull_trade_details, pull_managers, get_transactions, get_rosters
+from src.utils import get_league, pull_trade_details, pull_managers, get_transactions, get_rosters, get_matchups
 
-lg = get_league(2018)
-dir(lg)
-lg.matchups()
+# Testing
+# lg = get_league(2018)
+# dir(lg)
+# lg.matchups()
 
 # pprint(lg.matchups())
 
