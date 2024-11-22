@@ -265,3 +265,71 @@ order by points DESC
 
 select * from adds limit 10;
 
+
+
+-- I need to reconstruct the player path to get a weekly roster
+-- say - what was Chad's roster in week 2 of 2008?
+
+select * from events where player_id = 5452 and year = 2007;
+
+WITH status_intervals AS (
+    -- Step 1: Calculate intervals of activity based on status changes
+    SELECT 
+        player_id,
+        year,
+        week AS start_week,
+        source_mid,
+        destination_mid,
+        selected_position AS pos,
+        timestamp,
+        CASE 
+            WHEN LEAD(week, 1) OVER (PARTITION BY year, player_id ORDER BY timestamp) IS NULL THEN week
+            WHEN LEAD(week, 1) OVER (PARTITION BY year, player_id ORDER BY timestamp) > week THEN 
+                LEAD(week, 1) OVER (PARTITION BY year, player_id ORDER BY timestamp) - 1
+            ELSE week
+        END AS end_week,
+        -- LEAD(week, 1, NULL) OVER (PARTITION BY year, player_id ORDER BY timestamp) - 1 AS end_week,
+        type
+    FROM events
+    WHERE week > 0 order by timestamp;
+    -- uncomment to only show the SELECT in this first CTE
+    -- WHERE week > 0 order by player_id, timestamp;
+),
+active_periods AS (
+    -- Step 2: Filter only active intervals
+    SELECT 
+        player_id,
+        year,
+        source_mid,
+        destination_mid,
+        start_week,
+        COALESCE(end_week, (SELECT MAX(week) FROM events)) AS end_week,
+        type,
+        pos
+    FROM status_intervals
+    WHERE type = 'active'
+),
+roster AS (
+    -- Step 3: Generate all active weeks for each player
+    SELECT 
+        a.player_id,
+        a.source_mid,
+        a.destination_mid,
+        a.year,
+        w.week,
+        a.type,
+        a.pos
+    FROM active_periods a
+    JOIN (SELECT DISTINCT week FROM events) w
+      ON w.week BETWEEN a.start_week AND a.end_week
+)
+-- Final Step: Output the player roster by week
+SELECT
+    year, week, source_mid, COUNT(player_id) AS num_players--, pos
+FROM roster
+GROUP BY year, source_mid, week
+ORDER BY year, week, source_mid;
+
+
+
+

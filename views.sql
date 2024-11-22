@@ -131,26 +131,21 @@ ORDER BY
 
 
 
-
-
-
-
-
 -- CREATE VIEW drafts AS
 -- ...
 -- ;
 
--- see database table sizes
+-- Get database table sizes for comparing dynamic vs static database structure
 
 -- before
-SELECT pg_size_pretty( pg_total_relation_size('rosters') ); -- 3496 kB
-SELECT pg_size_pretty( pg_total_relation_size('trans_test') ); -- 1048 kB
+SELECT pg_size_pretty( pg_total_relation_size('rosters') ); -- 3240 kB
+SELECT pg_size_pretty( pg_total_relation_size('transactions') ); -- 776 kB
 SELECT pg_size_pretty( pg_total_relation_size('drafts') ); -- 248 kB
 
 -- after
-SELECT pg_size_pretty( pg_total_relation_size('events') ); -- 2936 kB
+SELECT pg_size_pretty( pg_total_relation_size('events') ); -- 2960 kB
 
--- 100 * ((4792 - 2936) / 4792) = 38.7% reduction in size
+-- 100 * ((4264 - 2960) / 4264) # 30.6% reduction in size
 
 -- 
 SELECT e.player_id
