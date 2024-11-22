@@ -27,7 +27,6 @@ transactions['timestamp'] = transactions['timestamp'].transform(datetime.fromtim
 # Sorting by date for later
 transactions.sort_values('timestamp', inplace=True)
 transactions.reset_index(inplace=True)
-print(transactions.head())
 
 #------------------------------------------------------------------------
 # Teams
@@ -55,8 +54,9 @@ rosters['selected_position'].value_counts()
 
 weeks = pd.read_csv("data/weeks.csv")
 weeks['start'] = pd.to_datetime(weeks['start'])
-weeks['end'] = pd.to_datetime(weeks['end']) + pd.Timedelta('11:59:59')
+weeks['end'] = pd.to_datetime(weeks['end']) + pd.Timedelta('23:59:59')
 # I realized this was critical because sometimes people add/drop right before the end of the week
+# Found a problem!! I had been using 11:59:59 as a minute before midnight..
 
 # See how many unique players we've used over the years
 len(set(rosters['player_id']))  # 1090
@@ -69,9 +69,7 @@ rosters = rosters.merge(weeks[['year','week','end']], on=['year','week'])
 rosters.rename({'end': 'timestamp', 'status': 'destination'}, axis=1, inplace=True)
 rosters['timestamp'] = rosters['timestamp'] - pd.Timedelta(seconds = 1)
 
-# print(moves[(moves['year']==2023) & (moves['player_id']==100024)])
-
-# cool codes!
+# cool comment codes!
 # BUG 
 # FIXME
 # NOTE
@@ -97,30 +95,29 @@ rosters['timestamp'] = rosters['timestamp'] - pd.Timedelta(seconds = 1)
 # Working with the drafts table
 #------------------------------------------------------------------------
 
-# Get first transaction times by year
-first_trans_time = transactions.groupby('year')['timestamp'].min()
+# Initiate empty column (we'll convert to datetime later after interpolating)
+drafts['timestamp'] = np.nan
 
-# TODO: make sure all drafted players should have transition from FA -> BN
+# Get first transaction times by year (use as last pick time of the draft)
+last_pick_times = transactions.groupby('year')['timestamp'].min()
+idx_last_pick = drafts.groupby('year')['pick'].idxmax()
+drafts.loc[idx_last_pick, 'timestamp'] = pd.to_numeric(last_pick_times[drafts.loc[idx_last_pick, 'year']].values)
 
-
-drafts['timestamp'] = pd.NaT
-idx = drafts.groupby('year')['pick'].idxmax()
-drafts.loc[idx, 'timestamp'] = first_trans_time[drafts.loc[idx, 'year']].values
+# Assuming each round takes 1 minute, we'll create pseudo-timestamps for drafted players
 
 # Num picks per year as a timedelta object in minutes
 draft_lengths = drafts.groupby('year').size() - 1
 draft_lengths = draft_lengths.astype('timedelta64[m]')
 
-# First pick
-first_pick_times = first_trans_time - draft_lengths
-idx = drafts.groupby('year')['pick'].idxmin()
-drafts.loc[idx, 'timestamp'] = pd.to_datetime(first_pick_times[drafts.loc[idx, 'year']].values)
+# First pick times
+first_pick_times = last_pick_times - draft_lengths
+idx_first_pick = drafts.groupby('year')['pick'].idxmin()
+drafts.loc[idx_first_pick, 'timestamp'] = pd.to_numeric(first_pick_times[drafts.loc[idx_first_pick, 'year']].values)
 
-drafts['timestamp'] = pd.to_datetime(drafts['timestamp'])
-
-# Assuming each round takes 1 minute, we'll create pseudo-timestamps for drafted players
 # using the interpolate function of pandas
-drafts['timestamp'] = drafts['timestamp'].interpolate()
+# NOTE: I had to make sure this WASNT a datetime class before lienar interpolation
+drafts['timestamp'] = drafts['timestamp'].interpolate(method='linear')
+drafts['timestamp'] = pd.to_datetime(drafts['timestamp'])
 
 # Some more renaming
 drafts.rename({'team_key': 'destination'}, inplace=True, axis=1)
@@ -137,10 +134,11 @@ rosters['source'] = rosters['team_key']
 rosters['destination'] = rosters['team_key']
 
 # Function to check if a date is in any range
+# NOTE: i know this function can be optimized, but it works for now.
 def get_week(date, df_ranges):
     for _, row in df_ranges.iterrows():
         if row['start'] <= date <= row['end']:
-            return int(row['week'])  # Use '%U' for week number
+            return int(row['week'])
 
 # Get weeks from weeks table
 transactions['week'] = transactions['timestamp'].apply(lambda x: get_week(x, df_ranges=weeks))
@@ -154,6 +152,8 @@ transactions['week'] = transactions['week'].astype(int)
 
 # Now concatenate into a big transitions dataframe
 # We need 3 tables: moves, transactions, and drafts
+
+# Prep drafts, transactions for concatenating with rosters
 drafts['selected_position'] = 'BN'
 transactions['selected_position'] = np.where(transactions["trans_type"].isin(['add','trade']), 'BN', '')
 
@@ -175,10 +175,9 @@ events.isna().sum() # cool, no NAs!
 # There was a problem with this player.
 # figured out what was happening- in week 10 he was dropped before going active
 # apparently in that year we could drop someone right after they played..?
-rosters[(rosters['player_id']==6781) & (rosters['year']==2007)]
-events[(events['player_id']==6781) & (events['year']==2007)]
-transactions[(transactions['player_id']==6781) & (transactions['year']==2007)]
-
+print(rosters[(rosters['player_id']==6781) & (rosters['year']==2007)])
+print(events[(events['player_id']==6781) & (events['year']==2007)])
+print(transactions[(transactions['player_id']==6781) & (transactions['year']==2007)])
 
 # last event can't be drop by a team before making that player active
 # here is a function that adjusts the active time to a second before the drop time
@@ -186,20 +185,43 @@ transactions[(transactions['player_id']==6781) & (transactions['year']==2007)]
 # NOTE: I'm currently setting the active time as the last minute of the last day of the NFL week
 # I could also probably just link up the actual game time for a pid
 # nfl database maybe?
+
+# Tack on week start, end for function below
+events = events.merge(weeks, on=['year','week'], how='left')
+
+df = events[(events['year']==2008) & (events['player_id']==549) & (events['week']==4)]
+df
+
 def adjust_active_time(df):
     # Reset the index
     df = df.reset_index()
      # Iterate through the rows of the DataFrame
-    for i in range(1, len(df)):  # Start from 1 to safely access i-1
-        if df.loc[i, 'trans_type'] == 'active' and df.loc[i-1, 'trans_type'] == 'drop':
-            # Adjust the timestamp for 'active'
-            df.loc[i, 'timestamp'] = df.loc[i-1, 'timestamp'] - pd.Timedelta(seconds=1)
+    for i in range(0, len(df)-1):  # Start from 0 to safely access i+1
+    # i=0
+        if df.loc[i, 'trans_type'] == 'drop' and df.loc[i+1, 'trans_type'] == 'active':
+            # Adjust the timestamp for the drop to following week at MIDNIGHT
+            df.loc[i, 'timestamp'] = df.loc[i, 'end'] + pd.Timedelta(seconds=1)
+            df.loc[i, 'week'] = df.loc[i, 'week'] + 1
     return df
 
+# Adjust times by year, player, and week
 events = events.groupby(['year','player_id','week']).apply(adjust_active_time)
+
+# Resort
 events = events.sort_values('timestamp')
-events = events.drop(['index','year','week','player_id'], axis=1)
+
+events = events.rename({'week': 'week_adj'}, axis=1)
+
+# 
+events = events.drop(['index','year','player_id'], axis=1)
 events = events.reset_index()
+events = events.drop(['week'], axis=1)
+
+# Now rename back
+events = events.rename({'week_adj': 'week'}, axis=1)
+
+# Check that there aren't any NAs
+any(events['week'].isna())
 
 # This function will create a path for a player (e.g., bench -> active -> bench)
 # Function that defines paths a player takes in a given year
@@ -225,7 +247,7 @@ moves.reset_index(inplace=True)
 moves
 
 len(events) # 42321
-len(moves) # 19854
+len(moves) # 19861
 
 # NOTE: how can i see about database efficiency for transaction stream vs static weekly roster tables?
 
@@ -234,7 +256,7 @@ len(moves) # 19854
 #------------------------------------------------------------------------
 
 len(rosters) # 32907
-len(moves) # 19854 (about 1/3 the size of the original rosters table)
+len(moves) # 19861 (about 1/3 the size of the original rosters table)
 len(drafts) # 1985
 len(transactions) # 7429
 
@@ -242,46 +264,21 @@ len(transactions) # 7429
 players = rosters.groupby(['player_id','name']).head(1)
 players = players[['player_id','name','position_type','eligible_positions']].sort_values('player_id')
 
-
-# TODO get player stats from Yahoo (this will take a while)
-# NOTE: need to loop by week, year, for each player_id
-
-
-# TODO might need to see about having a category for BN-Active and Active moves to diff position
-
-
 #------------------------------------------------------------------------
 # Visualize the data
 #------------------------------------------------------------------------
 
 import seaborn as sns
-plotdf = events.groupby('year')['trans_type'].value_counts().reset_index(name='count')
+plotdf = moves.groupby('year')['trans_type'].value_counts().reset_index(name='count')
 plotdf
 
 sns.lineplot(data=plotdf, x='year', y='count', hue='trans_type')
 
+plt = sns.relplot(data=plotdf, x='year', y='count', hue='trans_type', kind='line', col='trans_type', col_wrap=3, facet_kws={'sharey': False})
+plt.savefig('figures/transaction_type_yearly_count.png')
 
-print(events.head())
-print(weeks.head())
-print(players.head())
-print(teams.head())
-
-
-
-
-transactions[(transactions['year']==2023) & (transactions['player_id'] == 100024)]
-rosters[(rosters['year']==2023) & (rosters['player_id'] == 100024)]
-moves[(moves['year']==2023) & (moves['player_id'] == 100024)]
-
-# week 9 active
-# week 10 dropped
-# week 13 picked back up (by same team.. I think that's where the prob is)
-# week 13 started
-
-get_path(rosters[(rosters['year']==2023) & (rosters['player_id'] == 100024)])
-
-
-
+#------------------------------------------------------------------------
 # Output to file
-moves.to_csv("data/events.csv", index=False)
+#------------------------------------------------------------------------
 
+moves.to_csv("data/events.csv", index=False)
