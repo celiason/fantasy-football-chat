@@ -105,8 +105,9 @@ nms = hier_df.indices
 nms_short = [re.split('[ _]', x)[0].lower() for x in nms]
 
 # BUG fix this- not working now
-fig, ax = plt.subplots()
-ax = sns.heatmap(hier_df.mat, cmap='cividis', annot=True, fmt=".0f", xticklabels=nms_short, yticklabels=nms_short, ax=ax)
+
+fig, ax = plt.subplots(tight_layout=True)
+ax = sns.heatmap(hier_df.mat, cmap='mako', annot=True, fmt=".0f", xticklabels=nms_short, yticklabels=nms_short, ax=ax)
 ax.xaxis.set_ticks_position('top')  # Move x-axis labels to the top
 ax.xaxis.set_label_position('top')  # Move x-axis labels to the top
 ax.tick_params(axis='x', rotation=90)
