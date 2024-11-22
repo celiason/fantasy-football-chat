@@ -8,12 +8,24 @@ import matplotlib.pyplot as plt
 from HierarchiaPy import Hierarchia
 import seaborn as sns
 from datetime import datetime
+import re
 
 # Load data
 matchups = pd.read_csv("data/matchups.csv", index_col=0)
 drafts = pd.read_csv("data/drafts.csv", index_col=0)
 transactions = pd.read_csv("data/transactions.csv", index_col=0)
 teams = pd.read_csv("data/teams.csv", index_col=0)
+
+# Fix some missing manager names
+teams.loc[(teams['name'] == 'Rubber City Galoshes'), 'nickname'] = 'matt_harbert'
+teams.loc[(teams['name'] == 't-t-totally dudes'), 'nickname'] = 'josiah mclat'
+teams.loc[(teams['name'] == 'The Woebegones'), 'nickname'] = 'Charles'
+teams.loc[(teams['name'] == "Doinel's Destroyers!"), 'nickname'] = 'Rusty Blevins'
+teams.loc[(teams['name'] == 'The Five Toes'), 'nickname'] = 'Justin Smith'
+teams.loc[(teams['name'] == 'Browns West'), 'nickname'] = 'Bodad'
+
+# Check it worked
+len(teams[teams['nickname'] == '--hidden--']) == 0
 
 picks = teams.loc[teams['nickname'].str.contains('Chad'), 'team_key'].tolist()
 
@@ -60,7 +72,7 @@ matchups['matchup'] = matchups.groupby(['year','week']).cumcount() + 1
 
 # This melts the data frame- really useful 'stubs' argument
 
-matchups_melted = pd.wide_to_long(matchups, axis=1, stubnames=['points','team_key'], i=['year','week','matchup'], j='team_id')
+matchups_melted = pd.wide_to_long(matchups, stubnames=['points','team_key'], i=['year','week','matchup'], j='team_id')
 
 # matchups_melted.pivot_table(values=['points'], index=['week'], columns='team')
 
@@ -76,6 +88,7 @@ df['loser'] = np.where(df['points1'] < df['points2'], df['nickname'], df['nickna
 # Lookup dict to change names
 m = {'Buie': 'JC', 'daniel': 'Will'}
 
+
 # Replace names
 df['winner'].replace(m, inplace=True)
 df['loser'].replace(m, inplace=True)
@@ -87,27 +100,41 @@ df['loser'].value_counts()
 # Create dominance matrix
 hier_df = Hierarchia(df, 'winner', 'loser')
 
+# Shorten names
+nms = hier_df.indices
+nms_short = [re.split('[ _]', x)[0].lower() for x in nms]
+
+# BUG fix this- not working now
+fig, ax = plt.subplots()
+ax = sns.heatmap(hier_df.mat, cmap='cividis', annot=True, fmt=".0f", xticklabels=nms_short, yticklabels=nms_short, ax=ax)
+ax.xaxis.set_ticks_position('top')  # Move x-axis labels to the top
+ax.xaxis.set_label_position('top')  # Move x-axis labels to the top
+ax.tick_params(axis='x', rotation=90)
+ax.set_xlabel('Loser')
+ax.set_ylabel('Winner')
+plt.savefig("figures/dominance_matrix.png")
+
 print(hier_df.mat)
 print(hier_df.indices)
 
 # Davids score is a measure of dominance
+hier_df.indices = nms_short
 davids_scores = hier_df.davids_score()
 print(davids_scores)
 
-# Who is "--hidden--"? Maybe Matt Harbert?
-df[df['nickname']=='--hidden--']['name'].value_counts()
-# name
-# Doinel's Destroyers!    13
-# The Woebegones           9
-# Browns West              7
-# Rubber City Galoshes     4
-# The Five Toes            3
-
 # Save plot
-plt.bar(davids_scores.keys(), davids_scores.values())
-plt.xticks(rotation=90)
+plt.barh(davids_scores.keys(), davids_scores.values())
+
+df_davids_scores = pd.DataFrame.from_dict(davids_scores, orient='index')
+df_davids_scores = df_davids_scores.reset_index()
+df_davids_scores.columns = ['index', 'david']
+
+sns.barplot(df_davids_scores, x='david', y='index')
+plt.xlabel("David's Score")
+plt.ylabel("")
 plt.savefig("figures/davids.png")
 
+%matplotlib inline
 
 def calc_david(df):
     hmat = Hierarchia(df, "winner", "loser")
