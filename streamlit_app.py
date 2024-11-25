@@ -142,21 +142,25 @@ st.title("Slow Learners Database Chat")
 st.image("assets/dalle_logo2.jpg")
 
 # Sidebar
-with st.sidebar:
-    st.subheader("Settings")
-    st.write("This is a simple chat application using PostgreSQL. Connect to the database and start chatting.")
+# with st.sidebar:
+#     st.subheader("Settings")
+#     st.write("This is a simple chat application using PostgreSQL. Connect to the database and start chatting.")
     
-    st.text_input("Database", value="postgres", key="Database")
-    st.text_input("Password", type="password", value="admin", key="Password")
+#     st.text_input("Database", value="postgres", key="Database")
+#     st.text_input("Password", type="password", value="admin", key="Password")
     
-    if st.button("Connect"):
-        with st.spinner("Connecting to database..."):
-            db = init_database(
-                st.session_state["Password"],
-                st.session_state["Database"]
-            )
-            st.session_state.db = db
-            st.success("Connected to database!")
+#     if st.button("Connect"):
+#         with st.spinner("Connecting to database..."):
+#             db = init_database(
+#                 st.session_state["Password"],
+#                 st.session_state["Database"]
+#             )
+#             st.session_state.db = db
+#             st.success("Connected to database!")
+
+if 'db' not in st.session_state:
+    db = init_database(st.secrets["supa_password"], "postgres")
+    st.session_state.db = db
 
 # @st.cache_data(show_spinner=False)
 
