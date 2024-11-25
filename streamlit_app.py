@@ -1,5 +1,6 @@
 import streamlit as st
 from sqlalchemy import create_engine
+from sqlalchemy import text
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
@@ -35,6 +36,7 @@ llm = ChatGroq(model="mixtral-8x7b-32768", temperature=0, api_key=st.secrets['gr
 
 # SQL chain setup
 def get_sql_chain(db):
+  
   template = """
     You are a data analyst for a fantasy football company. You are interacting with a user 
     who is asking you questions about a fantasy football league database.
@@ -86,7 +88,7 @@ def get_sql_chain(db):
     | llm
     | StrOutputParser()
   )
-    
+
 # Connect to LLM
 def get_response(user_query: str, db: SQLDatabase, chat_history: list):
   
@@ -111,7 +113,8 @@ def get_response(user_query: str, db: SQLDatabase, chat_history: list):
   chain = (
     RunnablePassthrough.assign(query=sql_chain).assign(
       schema=lambda _: db.get_table_info(),
-      response=lambda vars: db.run(vars["query"]),
+      # NOTE needed to replace '\\' to get SQLalchemy to work correctly
+      response=lambda vars: db.run(vars["query"].replace("\\", "")),
     )
     | prompt
     | llm
@@ -122,7 +125,6 @@ def get_response(user_query: str, db: SQLDatabase, chat_history: list):
     "question": user_query,
     "chat_history": chat_history,
   })
-    
 
 # Check for chat history  
 if "chat_history" not in st.session_state:
@@ -158,18 +160,10 @@ st.image("assets/dalle_logo2.jpg")
 #             st.session_state.db = db
 #             st.success("Connected to database!")
 
+# Load db if not in currently in session
 if 'db' not in st.session_state:
     db = init_database(st.secrets["supa_password"], "postgres")
     st.session_state.db = db
-
-# @st.cache_data(show_spinner=False)
-
-# db = init_database(st.secrets['supa_password'], 'postgres')
-
-# if not st.session_state.db:
-#     db = init_database(st.secrets['supa_password'], 'postgres')
-# else:
-#     db = st.session_state.db
 
 for message in st.session_state.chat_history:
     if isinstance(message, AIMessage):

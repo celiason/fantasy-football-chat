@@ -56,6 +56,8 @@ The first version worked ok, but the chatbot often misunderstood the question I 
 
 To solve this problem, I decided to create SQL views that have summarized data and more accessible names (with fewer many-to-many relationships). For example, I created a `slots` view that has NFL players on a given manager's roster for each week and year. I also created a `standings` view that has the records for each manager in each year. By only providing these views and the context of the column names, I was able to greatly improve the accuracy of the AI.
 
+Another challenge I ran into was what LLM to use. I wanted to make this free for my friends, so I opted for groq over OpenAI's GPT-3 model. 
+
 ## Understanding league engagement
 
 Possible metrics that could be useful in understanding manager engagement are roster turnover (the xx) and the overall number of moves (or transactions) made by a player.
