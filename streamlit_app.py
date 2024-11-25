@@ -11,6 +11,7 @@ from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 # Connect to database
 def init_database(password: str, database: str) -> SQLDatabase:
   db_uri = f"postgresql://postgres.rpeohwliutyvtvmcwkwh:{password}@aws-0-us-west-1.pooler.supabase.com:6543/{database}"
+  # Here I'm limiting the LLM to only 2 tables (makes things easier, gives better results)
   return SQLDatabase.from_uri(db_uri, include_tables = ['slots', 'standings'], view_support=True)
 
 # TODO setup hugging face so we don't hit rate limits at Grow
