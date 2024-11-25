@@ -17,7 +17,6 @@ REBUILD_DB = False
 # Initialize the database
 #------------------------------------------------------------------------
 uri = f"postgresql://postgres.rpeohwliutyvtvmcwkwh:{password}@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
-# engine = create_engine('postgresql+psycopg2://chad:password@localhost:5432/football', echo=True)
 engine = create_engine(uri, echo=True)
 
 #------------------------------------------------------------------------

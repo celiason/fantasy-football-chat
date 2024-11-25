@@ -7,12 +7,12 @@ from llama_index.core.query_engine import NLSQLTableQueryEngine
 from langchain_community.chat_models import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+import streamlit as st
 
 # from langchain_community.utilities.sql_database import SQLDatabase
 # from langchain_ollama import OllamaLLM
 
-
-db_uri = "postgresql+psycopg2://chad:password@localhost:5432/football"
+db_uri = st.secrets['db_uri']
 
 # Support views!!
 db = SQLDatabase.from_uri(db_uri, view_support=True)
