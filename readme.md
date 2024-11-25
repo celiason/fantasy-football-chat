@@ -6,6 +6,12 @@
 
 ## Introduction
 
+I've been in a fantasy football league for 15 odds years now. I care a lot about the league and the people in it. We've been through a lot together. 
+
+Something I've noticed is that engagement ebbs and flows. We've had a total of 19 friends in the league, but a few dropped out after only a season or two. I always wondered if having a way to quickly access insights from historical data would be a way to increase league engagement. 
+
+thought it would be interesting to have a way to access our league history quickly and easily. 
+
 idea is to develop a fantasy football app
 AI powered? haha. maybe.
 add rankings integration from whatever sources you want (fantasy pros, etc.)
@@ -13,6 +19,8 @@ streamlit? not sure where I would host it..
 dominance metrics (head-to-head, like they do in college football)
 top 6 teams go to playoffs
 pull stats from...?
+
+Feel free to try the webapp out here- [https://fantasy-football-chat-wrmr8ksupfsmeutxb732rb.streamlit.app](https://fantasy-football-chat-wrmr8ksupfsmeutxb732rb.streamlit.app)
 
 ## Terminology
 
