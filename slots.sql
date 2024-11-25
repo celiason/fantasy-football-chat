@@ -1,3 +1,4 @@
+-- Create view slots - shows rosters by week
 CREATE VIEW slots AS(
 
 WITH max_weeks AS (

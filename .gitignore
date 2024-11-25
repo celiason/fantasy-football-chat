@@ -1,4 +1,5 @@
 data/*
 secrets.json
-secrets.yaml
+.streamlit/secrets.toml
 par_plants.py
+secrets.yaml

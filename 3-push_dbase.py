@@ -7,13 +7,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import psycopg2
 import numpy as np
+import streamlit as st
+
+password = st.secrets["supa_password"]
 
 REBUILD_DB = False
 
 #------------------------------------------------------------------------
 # Initialize the database
 #------------------------------------------------------------------------
-engine = create_engine('postgresql+psycopg2://chad:password@localhost:5432/football', echo=True)
+uri = f"postgresql://postgres.rpeohwliutyvtvmcwkwh:{password}@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+# engine = create_engine('postgresql+psycopg2://chad:password@localhost:5432/football', echo=True)
+engine = create_engine(uri, echo=True)
 
 #------------------------------------------------------------------------
 # We will use this below
@@ -384,3 +389,8 @@ counts.plot() # pretty good, a few weirdos with +/- 1 player on a week, but that
 # NOTE this is working for most weeks, but there a few cases when the drop 
 # time is before the last time of the NFL week (11:59 PM last day of week) and 
 # I need to figure out what to do with that...
+
+
+# Create Views
+
+

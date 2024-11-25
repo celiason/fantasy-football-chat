@@ -45,16 +45,20 @@ Here is a graph of the different types of events (actives, drops, adds, inactive
 
 ![](figures/transaction_type_yearly_count.png)
 
-## Connecting the database to a LLM
+## Prompt engineering
 
-I might want to connect an LLM to SQL database. I did this using langchain.
-
-Sample questions we could ask the LLM:
+I wanted to connect my database to a LLM so that we could ask some interesting questions. For example:
 1. What are some sample trades I could make?
 2. Who is the best of all time?
 3. Who makes the most trades?
 4. Show me a graph of points.
 5. How often does the person with the most points win it all?
+
+I might want to connect an LLM to SQL database. I did this using langchain.
+
+The first version worked ok, but the chatbot often misunderstood the question I was asking and either failed to return anything or hallucinated and gave a ridiculous answer (e.g., shane won 900 games in a season.. which is impossible).
+
+To solve this problem, I decided to create SQL views that have summarized data and more accessible names (with fewer many-to-many relationships). For example, I created a `slots` view that has NFL players on a given manager's roster for each week and year. I also created a `standings` view that has the records for each manager in each year. By only providing these views and the context of the column names, I was able to greatly improve the accuracy of the AI.
 
 ## Understanding league engagement
 

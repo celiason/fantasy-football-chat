@@ -10,6 +10,78 @@ import seaborn as sns
 from datetime import datetime
 import re
 
+from sqlalchemy import text
+from sqlalchemy import create_engine
+
+engine = create_engine('postgresql+psycopg2://chad:password@localhost:5432/football', echo=True)
+
+db = engine.connect()
+
+# Dropoff
+query = open("dropoff.sql").read()
+df = pd.read_sql_query(text(query), con=db)
+
+g = sns.FacetGrid(data=df, col='manager', hue='year', col_wrap=5)
+g.map(sns.lineplot, 'week', 'count')
+g.add_legend()
+plt.savefig('figures/dropoff.png')
+
+# running queries from .SQL files
+# psql -d football -f query.sql
+query = open("stints.sql").read()
+df = pd.read_sql_query(text(query), con=db)
+df['manager'] = [re.split('[ _]', x)[0].lower() for x in df['manager']]
+current_managers = ['andrew','jon','bo','josiah','shane','chad','jarrod','aaron','kai','charles','david','daniel']
+df = df[df['manager'].isin(current_managers)]
+df['stint'] = df['stint'].dt.days
+
+# Histogram
+df['stint'].hist()
+
+df['stint'].idmax()
+
+
+sns.histplot(data=df, x='stint', hue='manager', bins=10, multiple='stack')
+
+# Average by year
+df_yearly = df.groupby(['year','manager','pos'])['stint'].apply('mean').reset_index()
+
+sns.histplot(df_yearly[df_yearly['pos'].isin(['WR','QB','RB'])], x='stint', hue='pos')
+
+# Create the boxplot ordered by mean
+df_kickers = df_yearly[df_yearly['pos']=='K']
+
+# Calculate the mean for each category
+means = df_kickers.groupby('manager')['stint'].mean().sort_values()
+sns.boxplot(x='stint', y='manager', data=df_kickers, order=means.index, color='lightgreen')
+plt.savefig('figures/k_stints.png')
+
+# Create the boxplot ordered by mean
+df_rb = df_yearly[df_yearly['pos']=='RB']
+# Calculate the mean for each category
+means = df_rb.groupby('manager')['stint'].mean().sort_values()
+sns.boxplot(x='stint', y='manager', data=df_rb, order=means.index, color='lightgreen')
+plt.savefig('figures/rb_stints.png')
+
+# Create the boxplot ordered by mean
+df_wr = df_yearly[df_yearly['pos']=='WR']
+# Calculate the mean for each category
+means = df_wr.groupby('manager')['stint'].mean().sort_values()
+sns.boxplot(x='stint', y='manager', data=df_wr, order=means.index, color='lightgreen')
+plt.savefig('figures/wr_stints.png')
+
+# Create the boxplot ordered by mean
+df_def = df_yearly[df_yearly['pos']=='DEF']
+# Calculate the mean for each category
+means = df_def.groupby('manager')['stint'].mean().sort_values()
+sns.boxplot(x='stint', y='manager', data=df_def, order=means.index, color='lightgreen')
+plt.savefig('figures/def_stints.png')
+
+
+
+
+
+
 # Load data
 matchups = pd.read_csv("data/matchups.csv", index_col=0)
 drafts = pd.read_csv("data/drafts.csv", index_col=0)
