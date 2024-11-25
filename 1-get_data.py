@@ -11,23 +11,27 @@ import matplotlib.pyplot as plt
 from pprint import pprint # just discovered this! awesome way to visualize nested lists
 from collections import ChainMap
 from tqdm import tqdm
+import streamlit as st
 
 # Load my functions
 from src.utils import get_league, pull_trade_details, pull_managers, get_transactions, get_rosters, get_matchups
 
-# Testing
-# lg = get_league(2018)
-# dir(lg)
-# lg.matchups()
+# Load credentials
+YAHOO_KEY = st.secrets["yahoo_key"]
+YAHOO_SECRET = st.secrets["yahoo_secret"]
 
-# pprint(lg.matchups())
+# Getting 2017..
+# sc = OAuth2(YAHOO_KEY, YAHOO_SECRET)
+# gm = yfa.Game(sc, 'nfl')
+# lg = gm.to_league(gm.league_ids(year=2017)[0])
+# lg.matchups(week=1)['fantasy_content']['league'][0]['name']
 
 # Pull all Slow Learners league years
 # TODO: need to ask Bo for login to get years I wasn't there (2009-2011)
 all_transactions = pd.DataFrame()
 for year in tqdm(range(2007, 2024), desc="Processing Years"):
     # Get league
-    lg = get_league(year=year)
+    lg = get_league(year=year, key=YAHOO_KEY, secret=YAHOO_SECRET)
     # Check if empty league
     if lg is None:
         continue
@@ -36,10 +40,6 @@ for year in tqdm(range(2007, 2024), desc="Processing Years"):
     transactions = pd.DataFrame(transactions)
     transactions['year'] = year
     all_transactions = pd.concat([all_transactions, transactions])
-
-len(all_transactions) # 7429
-# print(all_transactions.head())
-# all_transactions['trans_type'].value_counts()
 
 # Draft dataset
 all_drafts = pd.DataFrame()

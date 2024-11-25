@@ -14,13 +14,14 @@ from collections import ChainMap
 from tqdm import tqdm
 
 # Re-authorize
-sc = OAuth2(None, None, from_file='secrets.yaml')
-gm = yfa.Game(sc, 'nfl')
+# sc = OAuth2(None, None, from_file='secrets.yaml')
+# gm = yfa.Game(sc, 'nfl')
 # lg = get_league(year=2024)
 
 # Function to return a league object given a league name
-def get_league(year, league_name="The Slow Learners"):
-    sc = OAuth2(None, None, from_file='secrets.yaml')
+def get_league(year, key, secret, league_name="The Slow Learners"):
+    # sc = OAuth2(None, None, from_file='secrets.yaml')
+    sc = OAuth2(YAHOO_KEY, YAHOO_SECRET)
     gm = yfa.Game(sc, 'nfl')
     league_ids = gm.league_ids(year=year)
     for id in league_ids:
