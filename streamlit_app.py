@@ -135,7 +135,7 @@ if "chat_history" not in st.session_state:
 # TODO make it like he's JC?
 
 # Page title, etc.
-st.set_page_config(page_title="Chat with MySQL", page_icon=":football:")
+st.set_page_config(page_title="Slow Learners Chat", page_icon=":football:")
 
 # Page header
 st.title("Slow Learners Database Chat")
