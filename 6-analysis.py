@@ -21,6 +21,43 @@ db = engine.connect()
 query = open("dropoff.sql").read()
 df = pd.read_sql_query(text(query), con=db)
 
+current_managers = ['andrew','jon','bo','josiah','shane','chad','jarrod','aaron','kai','charles','david','daniel']
+
+# Clean up the manager names
+df['manager'] = [re.split('[ _]', x)[0].lower() for x in df['manager']]
+
+# Filter out the managers we don't care about
+# df = df[df['manager'].isin(current_managers)]
+
+# Only plot manager 'chad'
+# df = df[df['manager'] == 'chad']
+# sns.barplot(data=df, x='year', y='players_remaining', hue='manager')
+# plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+
+# Plot the dropoff
+g = sns.FacetGrid(data=df.sort_values('year'), col='manager', col_wrap=5)
+g.map(sns.barplot, 'year', 'players_remaining')
+
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+
+# Plot stacked bar chart    
+sns.barplot(data=df, x='year', y='players_remaining', hue='manager')
+
+# Plot stacked bar chart
+g = sns.FacetGrid(data=df, col='manager', col_wrap=5)
+g.map(sns.barplot, 'year', 'players_remaining')
+
+sns.barplot(data=df, x='year', y='players_remaining', hue='manager', dodge=True)
+
+
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.xticks(rotation=45)
+plt.ylabel('Players Remaining')
+plt.title('Player Retention by Manager Over Time')
+plt.tight_layout()
+plt.savefig('figures/retention.png')
+
+
 g = sns.FacetGrid(data=df, col='manager', hue='year', col_wrap=5)
 g.map(sns.lineplot, 'week', 'count')
 g.add_legend()
@@ -31,7 +68,6 @@ plt.savefig('figures/dropoff.png')
 query = open("stints.sql").read()
 df = pd.read_sql_query(text(query), con=db)
 df['manager'] = [re.split('[ _]', x)[0].lower() for x in df['manager']]
-current_managers = ['andrew','jon','bo','josiah','shane','chad','jarrod','aaron','kai','charles','david','daniel']
 df = df[df['manager'].isin(current_managers)]
 df['stint'] = df['stint'].dt.days
 
