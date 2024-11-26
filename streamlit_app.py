@@ -8,6 +8,7 @@ from langchain_community.utilities import SQLDatabase
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+import time
 
 # Connect to database
 def init_database(password: str, database: str) -> SQLDatabase:
@@ -181,6 +182,7 @@ for message in st.session_state.chat_history:
 
 user_query = st.chat_input("Type a message...")
 
+# Printout the conversation
 if user_query is not None and user_query.strip() != "":
     st.session_state.chat_history.append(HumanMessage(content=user_query))
     
@@ -188,11 +190,21 @@ if user_query is not None and user_query.strip() != "":
         st.markdown(user_query)
         
     with st.chat_message("AI"):
-        response = get_response(user_query=user_query, db=st.session_state.db, chat_history=st.session_state.chat_history)
-        st.markdown(response)
+        message_placeholder = st.empty()
+        full_response = ""
+        with st.spinner("Thinking..."):
+           response = get_response(user_query=user_query, db=st.session_state.db, chat_history=st.session_state.chat_history)
+        for chunk in response.split():
+            full_response += chunk + " "
+            time.sleep(0.05)
+            
+            # Add a blinking cursor to simulate typing
+            message_placeholder.markdown(full_response + "▌")
         
-    st.session_state.chat_history.append(AIMessage(content=response))
+        message_placeholder.markdown(full_response)
+        # st.markdown(response)
+        
+    st.session_state.chat_history.append(AIMessage(content=full_response))
 
 # TODO add plotting capability
-
 
