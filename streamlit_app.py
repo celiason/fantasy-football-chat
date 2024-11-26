@@ -35,6 +35,8 @@ def init_database(password: str, database: str) -> SQLDatabase:
 llm = ChatGroq(model="mixtral-8x7b-32768", temperature=0, api_key=st.secrets['groq_api'], max_tokens=500)
 
 # SQL chain setup
+# My understanding is that this outputs a SQL query and passes it to the LLM below
+# then the LLM translates the SQL output to a human-readable result
 def get_sql_chain(db):
   
   template = """
@@ -50,6 +52,10 @@ def get_sql_chain(db):
     
     Write only the PostgreSQL query and nothing else. Do not wrap the PostgreSQL query in any other text, not even backticks.
 
+    If you don't know the answer, don't try to guess.
+
+    Don't use window functions in the WHERE clause.
+    
     For example:
     
     Question: Which manager had the best record in 2008?
