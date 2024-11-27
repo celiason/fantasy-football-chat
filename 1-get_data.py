@@ -17,21 +17,30 @@ import streamlit as st
 from src.utils import get_league, pull_trade_details, pull_managers, get_transactions, get_rosters, get_matchups
 
 # Load credentials
-YAHOO_KEY = st.secrets["yahoo_key"]
-YAHOO_SECRET = st.secrets["yahoo_secret"]
+# YAHOO_KEY = st.secrets["yahoo_key"]
+# YAHOO_SECRET = st.secrets["yahoo_secret"]
 
-# Getting 2017..
-# sc = OAuth2(YAHOO_KEY, YAHOO_SECRET)
-# gm = yfa.Game(sc, 'nfl')
-# lg = gm.to_league(gm.league_ids(year=2017)[0])
-# lg.matchups(week=1)['fantasy_content']['league'][0]['name']
+YAHOO_KEY = st.secrets["bo_client_id"]
+YAHOO_SECRET = st.secrets["bo_client_secret"]
+
+sc = OAuth2(YAHOO_KEY, YAHOO_SECRET)
+# sc = OAuth2(key, secret)
+gm = yfa.Game(sc, 'nfl')
+
+# TODO make and "update_db" kinda function that will check for changes and pull new data from Yahoo..
+# that way we can stay current and look at the year we're in.
+
+# Full set of years
+years = range(2007, 2024)
 
 # Pull all Slow Learners league years
-# TODO: need to ask Bo for login to get years I wasn't there (2009-2011)
 all_transactions = pd.DataFrame()
-for year in tqdm(range(2007, 2024), desc="Processing Years"):
+for year in tqdm(years, desc="Processing Years"):
     # Get league
-    lg = get_league(year=year, key=YAHOO_KEY, secret=YAHOO_SECRET)
+    if year == 2017:
+        lg = get_league(year=2017, gm=gm, league_name = "Famous Dave's League o Destiny")
+    else:
+        lg = get_league(year=year, gm=gm)
     # Check if empty league
     if lg is None:
         continue
@@ -43,15 +52,15 @@ for year in tqdm(range(2007, 2024), desc="Processing Years"):
 
 # Draft dataset
 all_drafts = pd.DataFrame()
-for year in tqdm(range(2007, 2024), desc="Processing Years"):
+for year in tqdm(years, desc="Processing Years"):
     draft = pd.DataFrame(lg.draft_results())
     draft['year'] = year
     all_drafts = pd.concat([all_drafts, draft])
 
 # Teams dataset
 all_teams = pd.DataFrame()
-for year in tqdm(range(2007, 2024), desc="Processing Years"):
-    teams = pull_managers(lg.teams())
+for year in tqdm(years, desc="Processing Years"):
+    teams = pull_managers(year=year, gm=gm)
     teams = pd.DataFrame(teams)
     teams['year'] = year
     all_teams = pd.concat([all_teams, teams])
@@ -61,39 +70,20 @@ all_teams.to_csv("data/teams.csv")
 all_transactions.to_csv("data/transactions.csv")
 all_drafts.to_csv("data/drafts.csv")
 
-# A player starts in a pool
-# can get drafted
-# can go to bench or starting lineup
-# if on starting lineup for a week, points count
-# can also go to waviers, FA
-# or get traded
-# so really all we need to do is track movement of players
-
-all_teams['nickname'].value_counts()
-
-len(all_transactions) # total of 4242 transactions :)
-
-# Plot trades over time
-all_transactions[all_transactions['trans_type']=="trade"].groupby(['year']).size().plot()
-
 # Get matchups
 all_matchups = pd.DataFrame()
-for year in tqdm(range(2007, 2024), desc="Processing matchups"):
+for year in tqdm(years, desc="Processing matchups"):
     try:
-        df = get_matchups(year=year)
+        df = get_matchups(year, gm)
         all_matchups = pd.concat([all_matchups, df])
     except:
         continue
 
-# list(product(range(2007,2024), [2,3,4]))
+# Reset indices
+all_matchups = all_matchups.reset_index()
 
-all_matchups.to_csv("data/matchups.csv")
-
-# Get player stats
-# player_id = 40068
-# lg.player_stats([player_id], req_type="season")
-# lg.player_stats([player_id], req_type="week", week=1)
-
+# Save CSV
+all_matchups.to_csv("data/matchups.csv", index=False)
 
 # Loop through and get all rosters for all years
 # NB: I got data for - 2007, 2008, 2014-2017
@@ -101,22 +91,16 @@ all_matchups.to_csv("data/matchups.csv")
 # not sure what the lockout time is.
 # Redid for subset of years and merged dataframe
 all_rosters = pd.DataFrame()
-for year in range(2007, 2024):
+for year in years:
     try:
         print(f"Processing data for the year {year}")
-        rost = get_rosters(year=year)
+        rost = get_rosters(year=year, gm=gm)
+        rost['year'] = year
         all_rosters = pd.concat([all_rosters, rost])
-        all_rosters['year'] = year
     except:
         print(f"No league data for the year {year}")
         continue
-    sleep(300)  # sleep for 5 minutes
-
-
-# Check that what I've done is working like I think (teams should have ~14 players each week)
-# df = all_rosters[all_rosters['year'] == 2023].groupby(['week', 'team_key']).size().unstack()
-# sns.heatmap(df, vmin=1, vmax=16)
-# yep looks ok
+    sleep(11)  # sleep for 5 minutes
 
 # Set the desired order of columns
 column_order = ['year', 'week', 'playoffs', 'team_key' ,'player_id', 'name', 'position_type', 'eligible_positions', 'selected_position']
@@ -126,9 +110,9 @@ all_rosters[column_order].to_csv("data/rosters.csv")
 
 # Get week start and end points
 weeks = []
-for year in tqdm(range(2007, 2024), desc="Processing Years"):
+for year in tqdm(years, desc="Processing Years"):
     try:
-        lg = get_league(year)
+        lg = get_league(year, gm)
     except:
         continue
     for week in range(1, 18):
@@ -145,20 +129,17 @@ df = pd.DataFrame(weeks)
 # Save dataframe
 df.to_csv("data/weeks.csv", index=False)
 
-
-# Get player statistics (this will take a long time)
-
-# Load rosters
+# Re-load rosters
 rosters = pd.read_csv("data/rosters.csv")
 
 # Create empty list for stats
 all_stats = []
 
-# Loop over years
-for year in range(2007, 2024):
+# Get player statistics (this takes a few minutes)
+for year in years:
     try:
         print(f"Processing year {year}...")
-        lg = get_league(year)
+        lg = get_league(year, gm)
         # Get player IDs for that year
         player_ids = list(set(rosters[rosters["year"]==year]["player_id"]))
     except:
@@ -182,11 +163,4 @@ statistics = pd.concat(all_stats)
 statistics['total_points'] = statistics['total_points'].astype(float)
 statistics.to_csv("data/statistics.csv", index=False)
 
-statistics[statistics['player_id']==28398].plot(x='year', y='total_points', kind='scatter')
-
-
 # NOTE: it seems that yahoo only started getting position-level stats in 2014. Might need to backfill with NFL data
-
-# TODO make and "update_db" kinda function that will check for changes and pull new data from Yahoo..
-# that way we can stay current and look at the year we're in.
-

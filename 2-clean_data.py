@@ -10,7 +10,7 @@ matchups = pd.read_csv("data/matchups.csv", index_col=0)
 # Drafts
 #------------------------------------------------------------------------
 
-drafts = pd.read_csv("data/drafts.csv", index_col=0)
+drafts = pd.read_csv("data/drafts.csv")
 drafts.reset_index(inplace=True)
 drafts.drop(['index'], axis=1, inplace=True)
 drafts['source'] = 'freeagents'
@@ -19,7 +19,7 @@ drafts['source'] = 'freeagents'
 # Transactions
 #------------------------------------------------------------------------
 
-transactions = pd.read_csv("data/transactions.csv", index_col=0)
+transactions = pd.read_csv("data/transactions.csv")
 
 # Convert from ms timestamp to dates
 transactions['timestamp'] = transactions['timestamp'].transform(datetime.fromtimestamp)
@@ -32,13 +32,13 @@ transactions.reset_index(inplace=True)
 # Teams
 #------------------------------------------------------------------------
 
-teams = pd.read_csv("data/teams.csv", index_col=0)
+teams = pd.read_csv("data/teams.csv")
 
 #------------------------------------------------------------------------
 # Rosters
 #------------------------------------------------------------------------
 
-rosters = pd.read_csv("data/rosters.csv", index_col=0)
+rosters = pd.read_csv("data/rosters.csv")
 rosters = rosters.sort_values(['year','week'])
 rosters.reset_index(inplace=True)
 rosters.drop('index', axis=1, inplace=True)
@@ -59,7 +59,7 @@ weeks['end'] = pd.to_datetime(weeks['end']) + pd.Timedelta('23:59:59')
 # Found a problem!! I had been using 11:59:59 as a minute before midnight..
 
 # See how many unique players we've used over the years
-len(set(rosters['player_id']))  # 1090
+len(set(rosters['player_id']))  # 1233
 
 #------------------------------------------------------------------------
 # Setup the moves table
@@ -164,8 +164,6 @@ column_order = ['year','week','timestamp','player_id','source','destination','tr
 events = events[column_order]
 events.reset_index(inplace=True, drop=True)
 
-print(events.head())
-
 # Counts of position selections
 events['selected_position'].value_counts()
 
@@ -189,9 +187,6 @@ print(transactions[(transactions['player_id']==6781) & (transactions['year']==20
 # Tack on week start, end for function below
 events = events.merge(weeks, on=['year','week'], how='left')
 
-df = events[(events['year']==2008) & (events['player_id']==549) & (events['week']==4)]
-df
-
 def adjust_active_time(df):
     # Reset the index
     df = df.reset_index()
@@ -207,12 +202,11 @@ def adjust_active_time(df):
 # Adjust times by year, player, and week
 events = events.groupby(['year','player_id','week']).apply(adjust_active_time)
 
-# Resort
+# Re-sort
 events = events.sort_values('timestamp')
-
 events = events.rename({'week': 'week_adj'}, axis=1)
 
-# 
+# Clean up
 events = events.drop(['index','year','player_id'], axis=1)
 events = events.reset_index()
 events = events.drop(['week'], axis=1)
@@ -246,8 +240,8 @@ moves.drop(['player_id','year'], axis=1, inplace=True)
 moves.reset_index(inplace=True)
 moves
 
-len(events) # 42321
-len(moves) # 19861
+len(events) # 64490
+len(moves) # 29316
 
 # NOTE: how can i see about database efficiency for transaction stream vs static weekly roster tables?
 
@@ -255,10 +249,10 @@ len(moves) # 19861
 # Compare sizes
 #------------------------------------------------------------------------
 
-len(rosters) # 32907
-len(moves) # 19861 (about 1/3 the size of the original rosters table)
-len(drafts) # 1985
-len(transactions) # 7429
+len(rosters) # 51013
+len(moves) # 29316 (about 1/3 the size of the original rosters table)
+len(drafts) # 2987
+len(transactions) # 10490
 
 # Unique players table
 players = rosters.groupby(['player_id','name']).head(1)
@@ -269,10 +263,14 @@ players = players[['player_id','name','position_type','eligible_positions']].sor
 #------------------------------------------------------------------------
 
 import seaborn as sns
+
 plotdf = moves.groupby('year')['trans_type'].value_counts().reset_index(name='count')
 plotdf
 
-sns.lineplot(data=plotdf, x='year', y='count', hue='trans_type')
+
+fig = sns.lineplot(data=plotdf, x='year', y='count', hue='trans_type')
+plt.savefig('figures/transaction_type_yearly_count_combined.png')
+plt.close()
 
 plt = sns.relplot(data=plotdf, x='year', y='count', hue='trans_type', kind='line', col='trans_type', col_wrap=3, facet_kws={'sharey': False})
 plt.savefig('figures/transaction_type_yearly_count.png')

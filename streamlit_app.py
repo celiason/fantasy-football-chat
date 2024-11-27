@@ -38,10 +38,11 @@ llm = ChatGroq(model="mixtral-8x7b-32768", temperature=0, api_key=st.secrets['gr
 # SQL chain setup
 # My understanding is that this outputs a SQL query and passes it to the LLM below
 # then the LLM translates the SQL output to a human-readable result
-def get_sql_chain(db):
-  
+def get_sql_chain(db: SQLDatabase):
+# def get_sql_chain(db: SQLDatabase, user_query: str, chat_history: list):
+
   template = """
-    You are a data analyst for a fantasy football company. You are interacting with a user 
+    You are a data analyst for a fantasy football company. You're name is JC. You are interacting with a user 
     who is asking you questions about a fantasy football league database.
 
     Based on the table schema below, write a PostgreSQL query that would answer the user's question. 
@@ -51,7 +52,11 @@ def get_sql_chain(db):
     
     Conversation History: {chat_history}
     
-    Write only the PostgreSQL query and nothing else. Do not wrap the PostgreSQL query in any other text, not even backticks.
+    Write only the SQL query and nothing else. Do not wrap the SQL query in any other text, not even backticks.
+    
+    Do not wrap table name in double quotes (").
+    
+    Pay attention to use only the column names that you can see in the schema description. Be careful to not query for columns that do not exist. Also, pay attention to which column is in which table.
 
     If you don't know the answer, don't try to guess.
 
@@ -60,14 +65,16 @@ def get_sql_chain(db):
     For example:
     
     Question: Which manager had the best record in 2008?
-    PostgreSQL Query:
+    
+    SQL Query:
     SELECT manager
     FROM standings
     WHERE year = 2008
     ORDER BY wins DESC LIMIT 1;
     
     Question: What were the top 3 quarterbacks in 2007?
-    PostgreSQL Query:
+    
+    SQL Query:
     SELECT year, player, SUM(points) AS season_points
     FROM slots
     WHERE year = 2007 and position = 'QB' 
@@ -76,7 +83,7 @@ def get_sql_chain(db):
     
     Write in PostgreSQL syntax.
     
-    Do not use backslashes \ in your query.
+    Do not use backslashes in your query.
 
     Your turn:
     
@@ -89,6 +96,13 @@ def get_sql_chain(db):
   def get_schema(_):
     return db.get_table_info()
 
+  # chain = (RunnablePassthrough.assign(schema=get_schema)
+  #   | prompt
+  #   | llm
+  #   | StrOutputParser())
+  
+  # return chain.invoke({"question": user_query, "chat_history": chat_history})
+
   return (
     RunnablePassthrough.assign(schema=get_schema)
     | prompt
@@ -96,14 +110,20 @@ def get_sql_chain(db):
     | StrOutputParser()
   )
 
+# response = get_sql_chain(db, user_query, st.session_state.chat_history)
+# response
+
 # Connect to LLM
 def get_response(user_query: str, db: SQLDatabase, chat_history: list):
   
   sql_chain = get_sql_chain(db)
   
   template = """
-    You are a data analyst for a fantasy football company. You are interacting with a user 
-    who is asking you questions about a fantasy football league database.
+    You are a data analyst for a fantasy football company.
+
+    You're name is JC.
+    
+    You are interacting with a user who is asking you questions about a fantasy football league database.
     
     Based on the table schema below, question, sql query, and sql response, write a natural 
     language response.
@@ -117,14 +137,21 @@ def get_response(user_query: str, db: SQLDatabase, chat_history: list):
   
   prompt = ChatPromptTemplate.from_template(template)
 
+  # Setup the langchain
   chain = (
-    RunnablePassthrough.assign(query=sql_chain).assign(
+    RunnablePassthrough
+    .assign(query=sql_chain)
+    .assign(
       schema=lambda _: db.get_table_info(),
       # NOTE needed to replace '\\' to get SQLalchemy to work correctly
+      # TODO I need to find out how to check if the SQL query will be valid before running it
       response=lambda vars: db.run(vars["query"].replace("\\", "")),
     )
+    # pass query, schema, response to prompt generator
     | prompt
+    # pass prompt to the llm
     | llm
+    # format the output
     | StrOutputParser()
   )
   
@@ -133,10 +160,25 @@ def get_response(user_query: str, db: SQLDatabase, chat_history: list):
     "chat_history": chat_history,
   })
 
+# from llama_index.core.query_engine import NLSQLTableQueryEngine
+# help(NLSQLTableQueryEngine)
+
+# tmp = chain.invoke({"question": user_query, "chat_history":st.session_state.chat_history})
+# try:
+#    chain.invoke({"question": user_query, "chat_history":st.session_state.chat_history})
+# except:
+#    print("nothing")
+
+# help(chain.invoke)
+
+# testing
+# user_query = "how many dollars did my kicker Bob get against bofo?"
+# user_query = "what team does dave have in 2007?"
+
 # Check for chat history  
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
-      AIMessage(content="Hello! I'm an expert on all things Slow Learner's. Ask me anything about your league's history!"),
+      AIMessage(content="Hi, kindly dimwit. I'm an expert on all things Slow Learner's. Ask me anything about your league's history."),
     ]
 
 # TODO make it like he's JC?

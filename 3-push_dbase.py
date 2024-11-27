@@ -32,7 +32,7 @@ seasons.index.name='season_id'
 seasons.index = seasons.index + 1
 
 if REBUILD_DB:
-       seasons.to_sql('seasons', engine)
+    seasons.to_sql('seasons', engine)
 
 #------------------------------------------------------------------------
 # Players table
@@ -45,7 +45,7 @@ players.set_index('player_id', inplace=True)
 players.drop('position_type', axis=1, inplace=True)
 
 if REBUILD_DB:
-       players.to_sql('players', engine, if_exists='replace')
+    players.to_sql('players', engine, if_exists='replace')
 
 #------------------------------------------------------------------------
 # Weeks table
@@ -81,13 +81,13 @@ sql_weeks = sql_weeks[['year','week','start','end','playoffs']]
 
 # Write to db
 if REBUILD_DB:
-       sql_weeks.to_sql("weeks", engine, if_exists='replace')
+    sql_weeks.to_sql("weeks", engine, if_exists='replace')
 
 #------------------------------------------------------------------------
 # Teams and managers tables
 #------------------------------------------------------------------------
 
-teams = pd.read_csv("data/teams.csv", index_col=0)
+teams = pd.read_csv("data/teams.csv")
 
 # Fix some missing manager names
 teams.loc[(teams['name'] == 'Rubber City Galoshes'), 'nickname'] = 'matt_harbert'
@@ -96,6 +96,8 @@ teams.loc[(teams['name'] == 'The Woebegones'), 'nickname'] = 'Charles'
 teams.loc[(teams['name'] == "Doinel's Destroyers!"), 'nickname'] = 'Rusty Blevins'
 teams.loc[(teams['name'] == 'The Five Toes'), 'nickname'] = 'Justin Smith'
 teams.loc[(teams['name'] == 'Browns West'), 'nickname'] = 'Bodad'
+# teams['nickname'].value_counts()
+teams.loc[(teams['nickname'] == '--hidden--') & (teams['name'] == 'Urban Cougars'), 'nickname'] = 'jarrod'
 
 # Check it worked
 len(teams[teams['nickname'] == '--hidden--']) == 0
@@ -121,16 +123,24 @@ managers = managers.rename(columns={'index': 'manager_id', 'nickname': 'manager'
 
 # Write to db
 if REBUILD_DB:
-       managers.to_sql("managers", engine, if_exists='replace')
+    managers.to_sql("managers", engine, if_exists='replace')
 
 #------------------------------------------------------------------------
 # Teams table
 #------------------------------------------------------------------------
 
-# Now we'll add manager ID to teams
-teams = teams.merge(managers.reset_index(), left_on='nickname', right_on='manager', suffixes=['_teams', ''])
+# Create a lookup dict for manager ID (matches manager name to manager ID)
+manager_lookup = managers.reset_index().set_index('manager')['manager_id'].to_dict()
+
+# Now we'll add manager ID to the teams table
+teams['manager_id'] = teams['nickname'].replace(manager_lookup)
+
+# teams = teams.merge(managers.reset_index(), left_on='nickname', right_on='manager', suffixes=['_teams', ''])
 teams = teams.rename(columns={'name': 'team'})
 teams = teams.merge(seasons.reset_index(), on='year')
+
+# and create a team lookup dict for use later...
+teams_lookup = teams.set_index('team_key')['manager_id'].to_dict()
 
 # Setup columns for db
 sql_teams = teams[['season_id','year','manager_id','team','number_of_moves','division_id','draft_grade']]
@@ -139,7 +149,7 @@ sql_teams.index = sql_teams.index + 1
 
 # Output to db
 if REBUILD_DB:
-       sql_teams.to_sql("teams", engine, if_exists='replace')
+    sql_teams.to_sql("teams", engine, if_exists='replace')
 
 #------------------------------------------------------------------------
 # Rosters table
@@ -154,22 +164,28 @@ sql_rosters.index = sql_rosters.index + 1
 
 # Write to db
 if REBUILD_DB:
-       sql_rosters.to_sql('rosters', engine, if_exists='replace')
+    sql_rosters.to_sql('rosters', engine, if_exists='replace')
 
 #------------------------------------------------------------------------
 # Matchups table
 #------------------------------------------------------------------------
 
-matchups = pd.read_csv("data/matchups.csv", index_col=0)
+matchups = pd.read_csv("data/matchups.csv")
 
-# Sanity check
+# Sanity check (should be False)
 any(matchups['team_key1'] == matchups['team_key2'])
 
-# Merges with team
-matchups = matchups.merge(teams[['team_key','manager_id','year']], left_on='team_key1', right_on='team_key')
-matchups.rename({'manager_id': 'manager_id1'}, axis=1, inplace=True)
-matchups = matchups.merge(teams[['team_key','manager_id']], left_on='team_key2', right_on='team_key')
-matchups.rename({'manager_id': 'manager_id2'}, axis=1, inplace=True)
+matchups[matchups['team_key1'] == '273.l.9288.t.11']
+matchups[matchups['team_key1'] == '273.l.9288.t.10']
+
+matchups[matchups['year']==2017]
+matchups[matchups['year']==2012]['week'].value_counts()
+
+teams[teams['year']==2012]
+
+# Create manager lookup ID
+matchups['manager_id1'] = matchups['team_key1'].replace(teams_lookup)
+matchups['manager_id2'] = matchups['team_key2'].replace(teams_lookup)
 
 matchups['winner_manager_id'] = np.where(matchups['points1'] > matchups['points2'], matchups['manager_id1'], matchups['manager_id2'])
 
@@ -207,9 +223,11 @@ any(matchups['manager_id1'] == matchups['manager_id2'])
 matchups.index = matchups.index + 1
 matchups.index.name = 'game_id'
 
+matchups['manager_id2'].astype(int)
+
 # Write to db
 if REBUILD_DB:
-       matchups[columns].to_sql("games", engine, if_exists='replace')
+    matchups[columns].to_sql("games", engine, if_exists='replace')
 
 #------------------------------------------------------------------------
 # Statistics table
@@ -268,7 +286,7 @@ if REBUILD_DB:
 # Drafts
 #------------------------------------------------------------------------
 
-drafts = pd.read_csv("data/drafts.csv", index_col=0)
+drafts = pd.read_csv("data/drafts.csv")
 
 # Add manager ID
 drafts = drafts.merge(teams[['team_key','manager_id']], on="team_key")
@@ -288,8 +306,6 @@ if REBUILD_DB:
 #------------------------------------------------------------------------
 
 events = pd.read_csv("data/events.csv")
-
-teams_lookup = teams.set_index('team_key')['manager_id'].to_dict()
 
 events['source_manager_id'] = events['source'].replace(teams_lookup)
 events['destination_manager_id'] = events['destination'].replace(teams_lookup)
@@ -391,5 +407,3 @@ counts.plot() # pretty good, a few weirdos with +/- 1 player on a week, but that
 
 
 # Create Views
-
-

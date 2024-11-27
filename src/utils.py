@@ -19,15 +19,13 @@ from tqdm import tqdm
 # lg = get_league(year=2024)
 
 # Function to return a league object given a league name
-def get_league(year, key, secret, league_name="The Slow Learners"):
+def get_league(year, gm):
     # sc = OAuth2(None, None, from_file='secrets.yaml')
-    sc = OAuth2(YAHOO_KEY, YAHOO_SECRET)
-    gm = yfa.Game(sc, 'nfl')
     league_ids = gm.league_ids(year=year)
     for id in league_ids:
         lg = gm.to_league(id)
         name = lg.matchups(week=1)['fantasy_content']['league'][0]['name']
-        if name == league_name:
+        if name in ["The Slow Learners","Famous Dave's League o Destiny"]:
             return lg
         else:
             next
@@ -110,8 +108,9 @@ def get_transactions(lg):
     return res
 
 # Pull manager and team data
-def pull_managers(teams):
+def pull_managers(year, gm):
     res = []
+    teams = get_league(year, gm).teams()
     team_names = list(teams.keys())
     for name in team_names:
         # name=team_names[0]
@@ -131,15 +130,14 @@ def pull_managers(teams):
     return res
 
 # Function to get winners and losers for a given league and week
-def get_matchups(year):
+def get_matchups(year, gm):
     """
-    lg = league object
-    week = week to target
+    gm = yahoo fantasy game object
+    year = year to target
     """
-    # Get matchups
-    # year = 2007
-    # week = 1
-    lg = get_league(year=year)
+
+    # Get league
+    lg = get_league(year, gm)
 
     df_all = pd.DataFrame()
 
@@ -157,8 +155,6 @@ def get_matchups(year):
             # names
             key1 = team1['team'][0][0]['team_key']
             key2 = team2['team'][0][0]['team_key']
-            # name1 = team1['team'][0][2]
-            # name2 = team2['team'][0][2]
             # points
             points1 = team1['team'][1]['team_points']['total']
             points2 = team2['team'][1]['team_points']['total']
@@ -172,24 +168,20 @@ def get_matchups(year):
     # Get league settings
     meta = lg.settings()
     end_week = int(meta['end_week'])
-    playoff_start = int(meta['playoff_start_week'])
+    # playoff_start = int(meta['playoff_start_week'])
 
     for week in range(1, end_week+1):
+        # week=1
         matchups = lg.matchups(week=week)
         df = pull_matchup(matchups)
         df_all = pd.concat([df_all, df])
     
     return df_all.set_index(['year','week'])
 
-# Testing
-# get_winners(year=2007, week=1)
-
-
-
 # Get weekly rosters
-def get_rosters(year):
+def get_rosters(year, gm):
     # Get league
-    lg = get_league(year=year)
+    lg = get_league(year=year, gm=gm)
     # Get league settings
     meta = lg.settings()
     end_week = int(meta['end_week'])
@@ -213,9 +205,3 @@ def get_rosters(year):
             # Add to exiting dataframe            
             df = pd.concat([df, roster])
     return df
-
-# check
-# rost_2007 = get_rosters(year=2007)
-# rost_2007.groupby(['team_key','week']).size()
-
-
