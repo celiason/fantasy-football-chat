@@ -1,5 +1,7 @@
 # Get data from yahoo
 
+# TODO - fix problem with trades from 2009-2014 (NULL source/dest teams)
+
 from time import sleep
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -37,10 +39,7 @@ years = range(2007, 2024)
 all_transactions = pd.DataFrame()
 for year in tqdm(years, desc="Processing Years"):
     # Get league
-    if year == 2017:
-        lg = get_league(year=2017, gm=gm, league_name = "Famous Dave's League o Destiny")
-    else:
-        lg = get_league(year=year, gm=gm)
+    lg = get_league(year=year, gm=gm)
     # Check if empty league
     if lg is None:
         continue
