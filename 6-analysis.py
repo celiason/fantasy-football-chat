@@ -338,25 +338,262 @@ g.map(sns.regplot, 'position_pick', 'season_rank', scatter=False, ci=None)
 
 sns.scatterplot(df, x='position_pick', y='season_rank', hue='position')
 
+import numpy as np
 
-# hexbin plot
-sns.jointplot(data=df, x='position_pick', y='season_rank', kind='hex')
-# add scatter plot on top of jointplot
-sns.scatterplot(data=df, x='position_pick', y='season_rank', alpha=0.15, color='red')
+df['type'] = np.where(df['draft_value'].isna(), 'FA', 'drafted')
+df
 
+idx = (df['player']=='James Conner') & (df['year']==2018)
 
-print(df.head())
+df.loc[idx]
 
+# def softmax(x):
+#     return np.exp(x) / np.sum(np.exp(x))
 
+# df['dv_soft'] = softmax(df['draft_value'])
 
-g = sns.FacetGrid(data=df, col='position', hue='year', col_wrap=3, sharex=False)
-g.map(sns.scatterplot, 'position_pick', 'season_rank')
-# add legend
+sns.scatterplot(data=df, x='season_rank', y='season_pts', hue='position', style='type')
+
+sns.boxplot(data=df, x='position', y='draft_value', hue='year')
+
+df['position'] = pd.Categorical(df['position'], categories=['QB', 'RB', 'WR', 'TE', 'K', 'DEF'], ordered=True)
+
+g = sns.FacetGrid(data=df, col='year', hue='type', col_wrap=5, sharex=False)
+g.map(sns.stripplot, 'position', 'season_pts', alpha=0.25)
+g.map(sns.pointplot, 'position', 'season_pts')
 g.add_legend()
-# add fit lines
-g.map(sns.regplot, 'position_pick', 'season_rank', scatter=False, ci=None)
+g.set_xlabels('Position')
+g.set_ylabels('Season Points')
+g.savefig("figures/draft_value_by_pos.png")
 
+df[df['year']==2009].sort_values('season_pts', ascending=False)
+df[df['year']==2010].sort_values('season_pts', ascending=False)
+
+# How do we think about engagement?
+# Maybe- number of transactions, number of messages in chat, number of trades, number of draft picks, number of players added, number of players dropped
+# engagement = number of moves?
+
+df = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Standings View.csv")
+
+df2 = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Standings Table.csv")
+
+df = df.merge(df2, on=['year','manager'])
+
+df['moves'] = df['adds'] + df['drops'] + df['rosters']
+
+# Plot number of moves vs. end of season rank
+g = sns.FacetGrid(data=df, col='manager', col_wrap=5, sharey=False, sharex=False)
+g.map(sns.regplot, 'adds', 'rank', ci=None)
+g.set(ylim=(13, 0))
+g.savefig("figures/engagement_adds_rank.png")
+
+# Plot number of moves vs. total points scored
+g = sns.FacetGrid(data=df, col='manager', col_wrap=5, sharey=False, sharex=False)
+g.map(sns.regplot, 'adds', 'points_scored')
+g.savefig("figures/engagement_adds_points.png")
+
+# Plot number of roster adjustments vs. end of season rank
+g = sns.FacetGrid(data=df, col='manager', col_wrap=5, sharey=True, sharex=False)
+g.map(sns.regplot, 'rosters', 'rank', ci=None)
+# reverse y axis
+g.set(ylim=(13, 0))
+# sns.regplot(data=df, x='rosters', y='rank', ci=None)
+g.savefig("figures/engagement_rosters_rank.png")
+
+# Plot number of moves vs. total points scored
+g = sns.FacetGrid(data=df, col='manager', col_wrap=5, sharey=False, sharex=False)
+g.map(sns.regplot, 'rosters', 'points_scored')
+g.savefig("figures/engagement_rosters_points.png")
+
+# Plots overall for all managers
+sns.regplot(data=df, x='adds', y='points_scored')
+sns.regplot(data=df, x='rosters', y='points_scored')
+sns.regplot(data=df, x='adds', y='rank')
+
+sns.regplot(data=df, x='wins', y='rank') # no team has ever won it all with < 8 wins
+df[df['rank']==1]['points_scored'].min() # # you don't need tons of points, 1512 is lowest #1
+
+sns.regplot(data=df, x='rosters', y='rank')
+sns.regplot(data=df, x='adds', y='rank')
+
+# Regression
+# predictors: wins, add/drops, roster moves, points scored, points allowed, year?
+# response: champ or not
+
+# Create a binary champ variable
+df['champ'] = np.where(df['rank']==1, 1, 0)
+
+
+# Trying linear regression and logistic regression
+from sklearn import linear_model
+import xgboost as xgb
+
+X = df[['wins','adds','rosters','points_scored','points_allowed','manager','year']]
+y = df['champ']
+
+
+# from sklearn.preprocessing import StandardScaler
+
+# dummy variables
+# X = pd.get_dummies(X, columns=['manager'])
+
+# Xtrans = StandardScaler().fit_transform(X)
+
+# logr = linear_model.LogisticRegression()
+
+# logr.fit(X, y)
+
+# Get the coefficients
+# print(logr.coef_)
+
+# np.exp(logr.coef_)
+
+# pred = logr.predict(X)
+
+# Should've won and did
+# df.loc[(y==1) & (pred==1)]
+
+# Should've won but didn't
+# df.loc[(y==0) & (pred==1)]
+
+# Won but shouldn't have
+# df.loc[(y==1) & (pred==0)]
+
+X['manager'] = pd.Categorical(X['manager'])
+
+# test train split
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4)
+
+model = xgb.XGBClassifier(objective='binary:logistic', enable_categorical=True, learning_rate=0.01, max_depth=5, n_estimators=100)
+
+model.fit(X_train, y_train)
+
+# Setup XGBoost dataset
+# dtrain_reg = xgb.DMatrix(X, y, enable_categorical=True)
+
+# Create the params
+# params = {'objective':'binary:logistic', 'max_depth':10, 'learning_rate':1}
+
+# Fit the model
+# model = xgb.train(params=params, dtrain=dtrain_reg, num_boost_round=100)
+
+# Plot the decision tree
+xgb.plot_tree(model, num_trees=1)
+
+# Make predictions
+pred_test = model.predict(X_test)
+pred_train = model.predict(X_train)
+
+# Create a confusion matrix
+pd.crosstab(y_test, pred_test)
+
+# pd.crosstab(y_train, pred_train)
+
+# Shap value analysis
+
+import shap
+explainer = shap.TreeExplainer(model)
+
+shap_values = explainer.shap_values(X)
+
+X[X['manager']=='Chad']
+
+# year I lost
+shap.plots.waterfall(explainer(X)[109])
+
+# year I won
+shap.plots.waterfall(explainer(X)[133])
+
+shap.summary_plot(shap_values, X)
+
+# Create a "bump chart" of rankings
+import pandas as pd
+import plotly.express as px
+
+df_ranks = df[['year','rank','manager']].pivot(index='year', columns='manager', values='rank')
+df_ranks.reset_index(inplace=True)
+
+fig = px.line(df_ranks, x='year', y=df_ranks.columns[1:], markers=True, title='Bump Chart', color_discrete_sequence=px.colors.qualitative.Antique, line_shape='spline')
+# Customize the appearance
+fig.update_layout(yaxis={'autorange': 'reversed'})  # Reverse the y-axis
+fig.update_yaxes(tickvals=[1, 2, 3, 4, 5, 6,7,8,9,10,11,12],
+                 ticktext=['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'])
+# Show the plot
+fig.show()
+
+
+
+# Create smoothed sigmoid-like transitions
+
+import plotly.graph_objects as go
+
+smooth_data = []
+for manager in df['manager'].unique():
+    # manager = 'Chad'
+    cat_data = df[df['manager'] == manager]
+    for i in range(len(cat_data) - 1):
+        # i=0
+        t1, r1 = cat_data.iloc[i][['year', 'rank']]
+        t2, r2 = cat_data.iloc[i + 1][['year', 'rank']]
+        times = np.linspace(t1, t2, 50)  # 50 points for smooth curve
+        ranks = r1 + (r2 - r1) / (1 + np.exp(-10 * (times - (t1 + t2) / 2)))
+        smooth_data.append(pd.DataFrame({'year': times, 'rank': ranks, 'manager': manager}))
+
+smooth_df = pd.concat(smooth_data)
+
+# Create the line plot with Plotly Express
+fig = px.line(smooth_df, x='year', y='rank', color='manager',
+              labels={'rank': 'Rank', 'year': 'Year'},
+              title='Bump Chart showing Team Ranks Over Time',
+              color_discrete_sequence=px.colors.qualitative.Pastel_r)
+
+# Reverse Y-axis for rank order (1 at the top)
+fig.update_yaxes(autorange='reversed')
+
+# Extract the line colors from Plotly Express
+line_colors = {trace['name']: trace['line']['color'] for trace in fig['data'] if 'line' in trace}
+line_colors['Bodad'] = 'gray'
+line_colors['Jerry'] = 'gray'
+
+# Clear existing data traces to avoid duplicate legends
+fig.data = []
+
+# Add lines and markers combined under the same legend group
+for manager in df['manager'].unique().sort_values():
+    # Add the line trace
+    cat_smooth = smooth_df[smooth_df['manager'] == manager]
+    fig.add_trace(go.Scatter(
+        x=cat_smooth['year'],
+        y=cat_smooth['rank'],
+        mode='lines',
+        line=dict(color=line_colors[manager], width=2),
+        name=manager,
+        legendgroup=manager,  # Group legend items
+        showlegend=True       # Show legend only for the line trace
+    ))
+
+    # Add the marker trace
+    cat_data = df[df['manager'] == manager]
+    fig.add_trace(go.Scatter(
+        x=cat_data['year'],
+        y=cat_data['rank'],
+        mode='markers',
+        marker=dict(size=10, color=line_colors[manager]),
+        name=manager,          # Use the same name as the line
+        legendgroup=manager,   # Group legend items
+        showlegend=False        # Hide legend for markers
+    ))
+
+fig.update_layout(
+    plot_bgcolor='white',
+    paper_bgcolor='white',
+    font=dict(color='black'),
+    title_font=dict(color='black')
+)
 
 # TODO account for keepers
-# TODO account for league winners
-
+fig.update_layout(
+    width=1200,
+    height=600
+)
