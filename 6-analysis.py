@@ -318,3 +318,45 @@ sns.pairplot(df, hue='year', palette='tab10')
 
 df[['roster_moves','adds','games_won','total_points']].corr()
 
+
+
+# Draft value
+import pandas as pd
+import seaborn as sns
+
+df = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Roster Data Retrieval.csv")
+
+df_top50 = df[df['overall_pick'] < 50]
+
+g = sns.FacetGrid(data=df_top50, col='year', hue='position', col_wrap=5)
+g.map(sns.scatterplot, 'position_pick', 'season_rank')
+# add legend
+g.add_legend()
+# add fit lines
+g.map(sns.regplot, 'position_pick', 'season_rank', scatter=False, ci=None)
+
+
+sns.scatterplot(df, x='position_pick', y='season_rank', hue='position')
+
+
+# hexbin plot
+sns.jointplot(data=df, x='position_pick', y='season_rank', kind='hex')
+# add scatter plot on top of jointplot
+sns.scatterplot(data=df, x='position_pick', y='season_rank', alpha=0.15, color='red')
+
+
+print(df.head())
+
+
+
+g = sns.FacetGrid(data=df, col='position', hue='year', col_wrap=3, sharex=False)
+g.map(sns.scatterplot, 'position_pick', 'season_rank')
+# add legend
+g.add_legend()
+# add fit lines
+g.map(sns.regplot, 'position_pick', 'season_rank', scatter=False, ci=None)
+
+
+# TODO account for keepers
+# TODO account for league winners
+
