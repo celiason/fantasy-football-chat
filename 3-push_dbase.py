@@ -143,7 +143,7 @@ teams = teams.merge(seasons.reset_index(), on='year')
 teams_lookup = teams.set_index('team_key')['manager_id'].to_dict()
 
 # Setup columns for db
-sql_teams = teams[['season_id','year','manager_id','team','number_of_moves','division_id','draft_grade']]
+sql_teams = teams[['season_id','year','manager_id','team','number_of_moves','division_id','draft_grade','rank']]
 sql_teams.index.name = 'team_id'
 sql_teams.index = sql_teams.index + 1
 

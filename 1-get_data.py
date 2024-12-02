@@ -164,3 +164,29 @@ statistics['total_points'] = statistics['total_points'].astype(float)
 statistics.to_csv("data/statistics.csv", index=False)
 
 # NOTE: it seems that yahoo only started getting position-level stats in 2014. Might need to backfill with NFL data
+
+
+# Get final season ranks
+
+bigdf = pd.DataFrame()
+for year in tqdm(years, desc='Processing years'):
+    lg = get_league(year=year, gm=gm)
+    teams = [x['team_key'] for x in lg.standings()]
+    rank = [x['rank'] for x in lg.standings()]
+    df = pd.DataFrame({'team_key': teams, 'rank': rank})
+    df['year'] = year
+    # concatenate
+    bigdf = pd.concat([bigdf, df])
+
+bigdf.rename(columns={'team': 'team_key'}, inplace=True)
+bigdf.to_csv("data/standings.csv", index=False)
+
+# Add rankings to teams table
+teams = pd.read_csv("data/teams.csv")
+
+teams = teams.merge(bigdf, on=['team_key', 'year'], how='left')
+teams['rank'] = teams['rank'].astype(int)
+# teams['rank'].value_counts()
+
+# Resave teams df
+teams.to_csv("data/teams.csv", index=False)
