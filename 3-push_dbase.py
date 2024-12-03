@@ -299,7 +299,7 @@ drafts.index = drafts.index + 1
 
 # Write to db
 if REBUILD_DB:
-       drafts.to_sql("drafts", engine, if_exists='replace')
+    drafts.to_sql("drafts", engine, if_exists='replace')
 
 #------------------------------------------------------------------------
 # Events table
@@ -342,7 +342,7 @@ print(events_sql.head())
 
 # Output to SQL database
 if REBUILD_DB:
-       events_sql.to_sql("events", engine, if_exists='replace')
+    events_sql.to_sql("events", engine, if_exists='replace')
 
 #------------------------------------------------------------------------
 # Transactions
