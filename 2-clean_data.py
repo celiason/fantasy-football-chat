@@ -170,13 +170,6 @@ events['selected_position'].value_counts()
 # Check for NAs
 events.isna().sum() # cool, no NAs!
 
-# There was a problem with this player.
-# figured out what was happening- in week 10 he was dropped before going active
-# apparently in that year we could drop someone right after they played..?
-print(rosters[(rosters['player_id']==6781) & (rosters['year']==2007)])
-print(events[(events['player_id']==6781) & (events['year']==2007)])
-print(transactions[(transactions['player_id']==6781) & (transactions['year']==2007)])
-
 # last event can't be drop by a team before making that player active
 # here is a function that adjusts the active time to a second before the drop time
 # if a drop occurs right before a player going active
@@ -240,8 +233,8 @@ moves.drop(['player_id','year'], axis=1, inplace=True)
 moves.reset_index(inplace=True)
 moves
 
-len(events) # 64490
-len(moves) # 29316
+len(events) # 64615
+len(moves) # 29199
 
 # NOTE: how can i see about database efficiency for transaction stream vs static weekly roster tables?
 
@@ -250,8 +243,8 @@ len(moves) # 29316
 #------------------------------------------------------------------------
 
 len(rosters) # 51013
-len(moves) # 29316 (about 1/3 the size of the original rosters table)
-len(drafts) # 2987
+len(moves) # 29199 (about 1/3 the size of the original rosters table)
+len(drafts) # 3112
 len(transactions) # 10490
 
 # Unique players table
@@ -270,10 +263,6 @@ plotdf
 
 fig = sns.lineplot(data=plotdf, x='year', y='count', hue='trans_type')
 plt.savefig('figures/transaction_type_yearly_count_combined.png')
-plt.close()
-
-plt = sns.relplot(data=plotdf, x='year', y='count', hue='trans_type', kind='line', col='trans_type', col_wrap=3, facet_kws={'sharey': False})
-plt.savefig('figures/transaction_type_yearly_count.png')
 
 #------------------------------------------------------------------------
 # Output to file
