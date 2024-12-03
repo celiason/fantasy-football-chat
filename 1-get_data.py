@@ -52,6 +52,7 @@ for year in tqdm(years, desc="Processing Years"):
 # Draft dataset
 all_drafts = pd.DataFrame()
 for year in tqdm(years, desc="Processing Years"):
+    lg = get_league(year=year, gm=gm)
     draft = pd.DataFrame(lg.draft_results())
     draft['year'] = year
     all_drafts = pd.concat([all_drafts, draft])
