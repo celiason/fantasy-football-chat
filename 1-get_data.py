@@ -35,6 +35,18 @@ gm = yfa.Game(sc, 'nfl')
 # Full set of years
 years = range(2007, 2024)
 
+all_settings = pd.DataFrame()
+for year in tqdm(years, desc="Processing Years"):
+    try:
+        lg = get_league(year=year, gm=gm)
+    except:
+        continue
+    settings = lg.settings()
+    settings_df = pd.json_normalize(settings, sep='_')
+    settings_df['year'] = year
+    all_settings = pd.concat([all_settings, settings_df])
+all_settings.to_csv("data/settings.csv", index=False)
+
 # Pull all Slow Learners league years
 all_transactions = pd.DataFrame()
 for year in tqdm(years, desc="Processing Years"):
