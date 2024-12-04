@@ -35,13 +35,9 @@ I used a combination of SQLalchemy and PostgreSQL to build the database. We have
 
 The `rosters` table contains information about the roster, or the set of NFL players on a given person's team in a given week. You can imagine that sometimes a manager will leave a player in an active position all year. In that case, we would be recording data for each week (say, 16 weeks) when really all we need is 1 data point.
 
-A better idea is to look at transitions between states (for example, between an active roster spot and a bench spot). This is stored in a table called `events`. Doing this results in a __31% reduction in storage__, although the SQL queries are more challenging to write given the dynamic nature of the `events` table. A benefit of this approach is that I can easily calculate time-dependent features like like "roster turnover" as the amount of time a player has been in a position.
+A better idea is to look at transitions between states (for example, between an active roster spot and a bench spot). This is stored in a table called `events`. Doing this resulted in a __31% reduction in storage__, although the SQL queries are more challenging to write given the dynamic nature of the `events` table. A benefit of this approach is that I can easily calculate time-dependent features like like "roster turnover" as the amount of time a player has been in a position.
 
-Here is a graph of the different types of events (actives, drops, adds, inactives, drafts, and trades) as time series plot:
-
-![](figures/transaction_type_yearly_count.png)
-
-## Prompt engineering
+## Prompt engineering for the LLM
 
 I wanted to connect my database to a LLM so that we could ask some interesting questions. For example:
 1. What are some sample trades I could make?
@@ -60,7 +56,48 @@ Another challenge I ran into was what LLM to use. I wanted to make this free for
 
 ## Understanding league engagement
 
+1. How much does in season management matter compared to the draft you have?
+2. Does draft pick location matter?
+3. How have league rule changes affected engagement?
+4. What can we do to keep engagement high?
+5. Are there temporal changes in manager behavior that can be used to predict when they might leave the league?
+
 Possible metrics that could be useful in understanding manager engagement are roster turnover (the xx) and the overall number of moves (or transactions) made by a player.
+
+Some possibilities- 
+number of moves a manager makes
+outcome maybe- if they win a week or not.
+
+some players make very few moves. maybe if they knew if the moves mattered they would be more engaged? I think that's the idea here.
+
+Overall number of moves would be the unique events made by a manager.
+
+Let's say a player makes 25 moves in a week before a game and they win. The opposing player made 0 moves and they lost. Then we might suspect that the number of moves mattered. However, in the case of the player with 0 moves it could be that they have a really good team from the draft and they just don't need to make any moves because the team is fine as it is. In this case, we would expect a negative correlation between number of moves and number of wins.
+
+This is analogous to customer purchase behavior. We could have someone that clicks on a lot but never buys (wins), or someone that clicks strategically and makes a purchase (wins a game). But what about the influence that a draft has on future behavior? In that case, we can start to think about 
+
+(NB: I got this from someowhere else-https://www.vitroagency.com/the-parrot/what-marketers-learn-fantasy-football/)
+
+- Opportunity cost (the fantasy football draft or swapping players during season play)
+- Comparative advantage and gains (trading players to fill a position need)
+- Market behavior including supply and demand shocks (injury, Bye Weeks)
+- Consumer surplus (again, the draft)
+- Imperfectly competitive markets (fantasy “super team” rosters)
+- Game theory (analysis of player value in draft or trade)
+
+One thing that would be cool is to somehow see if there are any trends in behavior. That is, do some managers act the same way year-to-year in terms of pickups, draft selections, etc.
+
+To understand whether shifts in league settings have an effect on engagement, I plotted the relationship between manager activity (total number of adds, drops, roster shifts, and trades) and NFL week in a season. The fitted lines are second-order polynomials. You can see below that there is a clear bump in activity around week 8, then a decrease from week 8 on. It also appears that the curves arae shifting to the right over time. This suggests that more managers are staying active into later weeks of the season, which could be due to changes in league rules (e.g., we changed playoff structure in year X).
+
+![](figures/events_over_time_lmplot.png)
+
+To look at this more closely, I plotted manager activity by year for only week 15. There is a clear linear increase in activity from 2007 to 2023.
+
+![](figures/events_over_time_week15.png)
+
+When we look at week 2, this pattern is not present:
+
+![](figures/events_over_time_week2.png)
 
 ## Bringing primate dominance hierarchies to fantasy football
 

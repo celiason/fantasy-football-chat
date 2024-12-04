@@ -8,6 +8,9 @@ import re
 from sqlalchemy import text
 from sqlalchemy import create_engine
 import xgboost as xgb
+import shap
+from sklearn.metrics import classification_report, accuracy_score
+from sklearn.preprocessing import MinMaxScaler
 
 engine = create_engine('postgresql+psycopg2://chad:password@localhost:5432/football', echo=True)
 
@@ -321,7 +324,7 @@ df['position'] = pd.Categorical(df['position'], categories=['QB', 'RB', 'WR', 'T
 
 df[(df['year']==2009) & (df['position']=='RB')]['type'].value_counts()
 
-
+# Plot
 g = sns.FacetGrid(data=df, col='year', hue='type', col_wrap=5, sharex=False)
 g.map(sns.stripplot, 'position', 'season_pts', alpha=0.25)
 g.map(sns.pointplot, 'position', 'season_pts')
@@ -330,12 +333,12 @@ g.set_xlabels('Position')
 g.set_ylabels('Season Points')
 g.savefig("figures/draft_value_by_pos.png")
 
-
 # Figure out best FA pickups each year
 best_fa_pickups = df[df['type'] == 'FA'].groupby(['year', 'position']).apply(lambda x: x.loc[x['season_rank'].idxmin()])
 best_fa_pickups.reset_index(drop=True, inplace=True)
 best_fa_pickups.sort_values('season_rank', inplace=True)
 
+# Look at top 5 FA pickups by position
 print(best_fa_pickups[best_fa_pickups['position']=='QB'].head())
 print(best_fa_pickups[best_fa_pickups['position']=='RB'].head())
 print(best_fa_pickups[best_fa_pickups['position']=='WR'].head())
@@ -344,15 +347,49 @@ df[df['player']=='Kareem Hunt']
 
 df.sort_values('draft_value', ascending=False)
 
+#--------------- In-season management or a good draft.. what makes a winner? ----------------
+
+# calculate total season points
+# fraction gained by drafted players
+# fraction gained by free agent pickups
+
+df = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Fetch Recent Events.csv")
+
+df = df.groupby(['year','manager','type2'])['points'].sum().unstack()
+
+df = df.reset_index()
+
+df['total_points'] = df['draft'] + df['pickup']
+
+# proportion drafted points
+df['draft_prop'] = df['draft'] / df['total_points']
+
+# proportion pickup points
+df['pickup_prop'] = df['pickup'] / df['total_points']
+
+
+g = sns.FacetGrid(data=df, col='manager', col_wrap=5, sharey=True, sharex=True)
+g.map(sns.lineplot, 'year', 'draft_prop', marker='o')
+
+
+df2 = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Standings View.csv")
+df3 = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Standings Table.csv")
+df2 = df2.merge(df3, on=['year','manager'])
+
+df = df.merge(df2, on=['year','manager'])
+
+df['moves'] = df['adds'] + df['drops'] + df['rosters']
+
+df
+
+
+
+
 #--------------- Engagement Analysis ----------------
 # How do we think about engagement?
 # Maybe- number of transactions, number of messages in chat, number of trades, number of draft picks, number of players added, number of players dropped
 # engagement = number of moves?
 
-df = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Standings View.csv")
-df2 = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Standings Table.csv")
-df = df.merge(df2, on=['year','manager'])
-df['moves'] = df['adds'] + df['drops'] + df['rosters']
 
 # Plot number of moves vs. end of season rank
 g = sns.FacetGrid(data=df, col='manager', col_wrap=5, sharey=False, sharex=False)
@@ -394,85 +431,234 @@ df['champ'] = np.where(df['rank']==1, 1, 0)
 
 # Trying linear regression and logistic regression
 
-X = df[['wins','adds','rosters','points_scored','points_allowed','manager','year']]
-y = df['champ']
+X = df[['adds','rosters','draft','pickup','points_allowed']]
+y = df['wins']
+# y = df['champ']
 
 
-# from sklearn.preprocessing import StandardScaler
-
-# dummy variables
-# X = pd.get_dummies(X, columns=['manager'])
-
-# Xtrans = StandardScaler().fit_transform(X)
-
-# logr = linear_model.LogisticRegression()
-
-# logr.fit(X, y)
-
-# Get the coefficients
-# print(logr.coef_)
-
-# np.exp(logr.coef_)
-
-# pred = logr.predict(X)
-
-# Should've won and did
-# df.loc[(y==1) & (pred==1)]
-
-# Should've won but didn't
-# df.loc[(y==0) & (pred==1)]
-
-# Won but shouldn't have
-# df.loc[(y==1) & (pred==0)]
-
-X['manager'] = pd.Categorical(X['manager'])
+# X['manager'] = pd.Categorical(X['manager'])
 
 # test train split
 from sklearn.model_selection import train_test_split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4)
 
-model = xgb.XGBClassifier(objective='binary:logistic', enable_categorical=True, learning_rate=0.01, max_depth=5, n_estimators=100)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+# Logistic regression
+from sklearn.linear_model import LinearRegression
+
+linr = LinearRegression()
+
+linr.fit(X, y)
+
+# Make predictions
+
+pred = linr.predict(X)
+
+np.corrcoef(y, pred)
+
+sns.histplot(df, x='wins')
+
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+# defining the poisson glm 
+logr = smf.glm(formula = 'champ ~ wins + draft + pickup + adds + rosters + points_allowed', 
+               data = df,
+               family = sm.families.Binomial())
+
+# fitting the model 
+results = logr.fit()
+
+# Printing the summary of the regression results
+print(results.summary())
+
+np.exp(results.params)
+# every win increases the odds of winning the championship by 53%
+# every point scored by a drafted player increases the odds of winning the championship by 0.9%
+# every point scored by a free agent pickup increases the odds of winning the championship by 1.5%
+# every point scored by a player added DECREASES the odds of winning the championship by 0.6%
+# every point allowed DECREASES the odds of winning the championship by 1%
+
+# interpret coefficients
+X.columns
+linr.coef_
+
+.009 * 100
+
+sns.regplot(data=df, x='draft', y='wins')
+sns.regplot(data=df, x='pickup', y='wins')
+
+# Create a confusion matrix
+
+pd.crosstab(y, pred)
+
+# Summary of logistic regression model
+
+from sklearn.metrics import classification_report, accuracy_score
+
+# Print classification report
+print(classification_report(y, pred))
+
+# Print accuracy score
+print(f"Accuracy: {accuracy_score(y, pred)}")
+
+X.columns
+np.exp(logr.coef_)
+# for every 1 unit increase in draft pts, the odds of winning the championship increase by 1.2%
+logr.coef_
+# Interpret coefficients as log odds
+log_odds = np.exp(logr.coef_)
+print(f"Log odds: {log_odds}")
+
+
+model = xgb.XGBClassifier(objective='binary:logistic', learning_rate=0.5, max_depth=5, n_estimators=100)
 
 model.fit(X_train, y_train)
-
-# Setup XGBoost dataset
-# dtrain_reg = xgb.DMatrix(X, y, enable_categorical=True)
-
-# Create the params
-# params = {'objective':'binary:logistic', 'max_depth':10, 'learning_rate':1}
-
-# Fit the model
-# model = xgb.train(params=params, dtrain=dtrain_reg, num_boost_round=100)
 
 # Plot the decision tree
 xgb.plot_tree(model, num_trees=1)
 
 # Make predictions
-pred_test = model.predict(X_test)
-pred_train = model.predict(X_train)
+pred = model.predict(X_test)
+
+y_test.value_counts()
 
 # Create a confusion matrix
-pd.crosstab(y_test, pred_test)
+pd.crosstab(y_test, pred)
 
-# pd.crosstab(y_train, pred_train)
+sns.scatterplot(df, x='draft', y='wins', hue='champ')
+
+sns.regplot(df, x='draft', y='champ', logistic=True)
+
+
+sns.scatterplot(df, x='pickup', y='wins', hue='champ')
+
+
+
+# Feature importance
+xgb.plot_importance(model)
+
+# Pairplot - save as figure
+sns.pairplot(X)
+plt.savefig('figures/pairplot.png')
+
 
 # Shap value analysis
-
-import shap
 explainer = shap.TreeExplainer(model)
 
 shap_values = explainer.shap_values(X)
 
-X[X['manager']=='Chad']
-
-# year I lost
-shap.plots.waterfall(explainer(X)[109])
+df[df['manager']=='Chad']
 
 # year I won
 shap.plots.waterfall(explainer(X)[133])
+
+# year I was 12th
+shap.plots.waterfall(explainer(X)[109])
 
 shap.summary_plot(shap_values, X)
 
 #--------------- Ranking Bump Charts ----------------
 # see plotly_ranks.py
+
+
+df = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Fetch Draft Events.csv")
+df['topdog'] = [2,2,1,0,1,2,1,2,3,0,3,0]
+
+df.sort_values('wins', ascending=False) # best spot is #2 in terms of wins and points
+
+sns.barplot(data=df, x='overall_pick', y='wins', hue='topdog')
+
+df.plot(x='overall_pick', y='wins', kind='line', marker='o', size='topdog')
+df.plot(x='overall_pick', y='points', kind='line', marker='o')
+df.plot(x='overall_pick', y='topdog', kind='line', marker='o')
+
+
+
+events = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Event Activity Analysis.csv")
+
+events_sum = events[events['week']!=0].groupby(['year','week','manager']).size()
+events_sum = events_sum.reset_index(name='event_count')
+
+g = sns.FacetGrid(data=events_sum, col='manager', col_wrap=5, sharey=False, sharex=False)
+g.map(sns.lineplot, 'week', 'event_count', marker='o')
+
+events_sum['year_manager'] = events_sum['year'].astype(str) + '_' + events_sum['manager']
+
+# Time series clustering
+from tslearn.clustering import TimeSeriesKMeans
+from tslearn.utils import to_time_series_dataset
+from sklearn.preprocessing import StandardScaler
+
+events_ts = events_sum.pivot(index=['week'], columns='year_manager', values='event_count')
+events_ts.fillna(0, inplace=True)
+
+
+# smooth the time series data
+events_ts_smooth = events_ts.apply(lambda x: np.convolve(x, np.ones(5)/5, mode='same'))
+
+events_ts['2007_Andy'].plot()
+events_ts_smooth['2007_Andy'].plot()
+
+
+# Do different managers have different tendencies?
+# We'll use sklearn
+
+from sklearn.svm import LinearSVC
+
+# Get the cluster labels
+labels = X.index.str.split("_").str[1]
+
+# Fit the model to your data
+
+# Create a linear SVM model
+svm = LinearSVC()
+
+# only keep weeks 1-13
+X = events_ts_smooth.T
+
+# Fit the model to your data
+svm.fit(X, labels)
+
+# Get the cluster labels
+pred = svm.predict(X)
+
+# confusion matrix
+print(pd.crosstab(labels, pred))
+print(classification_report(labels, pred))
+
+# Do a PCA
+from sklearn.decomposition import PCA
+
+pca = PCA(n_components=2)
+
+X_pca = pd.DataFrame(pca.fit_transform(X))
+X_pca.columns = ['PC1', 'PC2']
+
+sns.scatterplot(X_pca, x='PC1', y='PC2', hue=labels, palette='Set1')
+
+
+
+# Generate plots
+p = sns.lmplot(data=events_sum, x='week', y='event_count', hue='year', order=2, ci=False, palette='mako')
+p.set_axis_labels("Week", "Manager Activity")
+p.fig.set_figwidth(12)
+p.fig.set_figheight(8)
+p.savefig("figures/events_over_time_lmplot.png", bbox_inches='tight')
+# we see an increase in events around week 8 then a decrease from week 8 on
+# from polynomial fitting, we see that the curve is shifting to the right over time
+# this suggests that more managers are staying active into later weeks of the season 
+# this could be due to changes in league rules (we changed playoff structure in year X)
+
+p = sns.lmplot(data=events_sum[events_sum['week'] == 2], x='year', y='event_count')
+p.set_axis_labels("Year", "Manager Activity")
+p.savefig("figures/events_over_time_week2.png", bbox_inches='tight')
+
+p = sns.lmplot(data=events_sum[events_sum['week'] == 15], x='year', y='event_count')
+p.set_axis_labels("Year", "Manager Activity")
+p.savefig("figures/events_over_time_week15.png", bbox_inches='tight')
+
+# when did we change league rules?
+
+# when did we add keepers
 
