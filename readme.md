@@ -1,7 +1,7 @@
 # Fantasy football chatbot
 
 <!-- ![](assets/dalle_turtle.jpg) -->
-![](assets/dalle_logo2.jpg)
+<!-- ![](assets/dalle_logo2.jpg) -->
 <!-- ![](assets/dalle_logo3.webp) -->
 
 ## Introduction
@@ -10,20 +10,7 @@ I've been in a fantasy football league for 15 odds years now. I care a lot about
 
 Feel free to try the webapp out here- [https://slow-learners-chat.streamlit.app](https://slow-learners-chat.streamlit.app)
 
-## Terminology
-
-There are a bunch of terms in the fantasy football world that need to be defined before we get into the details.
-
-1. league - This is a group of managers
-2. manager - This is a person that picks players to be on a team
-3. player - An NFL player that gains points for a manager in a given week
-4. roster - A set of players on a given week
-5. team - A group of rosters throughtout a season associated with a given manager. The team name can vary week-to-week. 
-6. statistic - A number that describes an NFL metric (yards gained, touchdown scored, etc.)
-7. week - A week in an NFL season
-8. season - A set of managers playing together in a given year
-
-## Challenges with sports data
+## Challenges with the data
 
 <!-- talk about database normalization maybe (1NF, 2NF, 3NF compliant) -->
 
@@ -37,22 +24,28 @@ The `rosters` table contains information about the roster, or the set of NFL pla
 
 A better idea is to look at transitions between states (for example, between an active roster spot and a bench spot). This is stored in a table called `events`. Doing this resulted in a __31% reduction in storage__, although the SQL queries are more challenging to write given the dynamic nature of the `events` table. A benefit of this approach is that I can easily calculate time-dependent features like like "roster turnover" as the amount of time a player has been in a position.
 
+<!-- ## Terminology
+
+There are a bunch of terms in the fantasy football world that need to be defined before we get into the details.
+
+1. league - This is a group of managers
+2. manager - This is a person that picks players to be on a team
+3. player - An NFL player that gains points for a manager in a given week
+4. roster - A set of players on a given week
+5. team - A group of rosters throughtout a season associated with a given manager. The team name can vary week-to-week. 
+6. statistic - A number that describes an NFL metric (yards gained, touchdown scored, etc.)
+7. week - A week in an NFL season
+8. season - A set of managers playing together in a given year -->
+
 ## Prompt engineering for the LLM
 
-I wanted to connect my database to a LLM so that we could ask some interesting questions. For example:
-1. What are some sample trades I could make?
-2. Who is the best of all time?
-3. Who makes the most trades?
-4. Show me a graph of points.
-5. How often does the person with the most points win it all?
+I wanted to connect my database to a LLM so that anyone in the league could ask some interesting questions, like: Who is the best manager of all time? Who makes the most trades? How often does the person with the most points in a season win the championship? To enable this, I connected a LLM to my PostgreSQL database using langchain.
 
-I might want to connect an LLM to SQL database. I did this using langchain.
+The first version of the chatbot was alright, but the AI often misunderstood the question I was asking and either failed to return anything or hallucinated and gave a ridiculous answer (e.g., shane won 900 games in a season.. which is impossible).
 
-The first version worked ok, but the chatbot often misunderstood the question I was asking and either failed to return anything or hallucinated and gave a ridiculous answer (e.g., shane won 900 games in a season.. which is impossible).
+To solve this problem, I decided to create SQL views of summarized data with more accessible names and fewer many-to-many relationships between tables. For example, I created a `slots` view that has NFL players on a given manager's roster for each week and year. I also created a `standings` view that has the records for each manager in each year. By only providing these views and the context of the column names, I was able to greatly improve the accuracy of the AI.
 
-To solve this problem, I decided to create SQL views that have summarized data and more accessible names (with fewer many-to-many relationships). For example, I created a `slots` view that has NFL players on a given manager's roster for each week and year. I also created a `standings` view that has the records for each manager in each year. By only providing these views and the context of the column names, I was able to greatly improve the accuracy of the AI.
-
-Another challenge I ran into was what LLM to use. I wanted to make this free for my friends, so I opted for groq over OpenAI's GPT-3 model. 
+<!-- Another challenge I ran into was what LLM to use. I wanted to make this free for my friends, so I opted for groq over OpenAI's GPT-3 model. -->
 
 ## Understanding league engagement
 
@@ -65,15 +58,6 @@ Interestingly, in 2014 there was a negative effect, while in 2018 in-season adds
 ![](figures/roster_adds_rank.png)
 
 The take-home is that the effect of in-season management depends on who is managing the team, and the set of players that are available in a given year.
-
-### How much does the draft matter?
-
-This might influence in-season engagement. If it matters a lot, then why do in season management?
-
-Here is a bumpchart showing where a manger ranks in a given year. The plot is interactive when viewed on my [personal website](https://celiason.github.io/4-software).
-
-![](bumpchart.png)
-
 
 ### How have league rule changes affected engagement?
 
@@ -117,9 +101,17 @@ This is analogous to customer purchase behavior. We could have someone that clic
 
 One thing that would be cool is to somehow see if there are any trends in behavior. That is, do some managers act the same way year-to-year in terms of pickups, draft selections, etc. -->
 
+## Visualizing league history
 
+### Bumpcharts to show rankings over time
 
-## Bringing primate dominance hierarchies to fantasy football
+This might influence in-season engagement. If it matters a lot, then why do in season management?
+
+Here is a bumpchart showing where a manger ranks in a given year. The plot is interactive when viewed on my [personal website](https://celiason.github.io/4-software).
+
+![](bumpchart.png)
+
+### Primate dominance hierarchies applied to fantasy football
 
 Below is a matrix showing the overall number of times a team beat another team. For example, if we look at "shane" we see that he beat bo 10 times but only beat chad 7 times. By contrast, chad beat shane 9 times. So his record against shane is 9-7. Pretty cool!
 
