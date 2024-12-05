@@ -1,9 +1,9 @@
 -- rank drafts by when they were picked (earlier = lower numbers)
 WITH draft_ranks AS(
-  select e.year,
-    -- e.week,
+  SELECT e.year,
     timestamp,
     p.player,
+    p.player_id,
     p.position,
     ROW_NUMBER() OVER (PARTITION BY year, p.position ORDER BY timestamp) AS position_pick,
     ROW_NUMBER() OVER (PARTITION BY year ORDER BY timestamp) AS overall_pick
@@ -16,11 +16,11 @@ WITH draft_ranks AS(
 
 -- sum up total points by year and player
 season_points AS (
-  SELECT player, position, year, SUM(total_points) AS season_pts
+  SELECT player, p.player_id, position, year, SUM(total_points) AS season_pts
   FROM players p
   LEFT JOIN stats s
   ON s.player_id = p.player_id
-  GROUP BY year, player, position
+  GROUP BY year, p.player_id, player, position
   ORDER BY season_pts DESC
 ),
 
@@ -43,7 +43,8 @@ draft_season_combined AS(
 
 SELECT year, player, position, season_rank, season_pts, position_pick, overall_pick, position_pick - season_rank AS draft_value
 FROM draft_season_combined
--- WHERE position = 'RB' AND year = 2009
+-- WHERE position = 'WR' AND year = 2010
+-- ORDER BY season_pts DESC
 -- WHERE year = 2018
 -- LIMIT 250;
 ;

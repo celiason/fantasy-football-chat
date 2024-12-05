@@ -1,48 +1,8 @@
 # Create a "bump chart" of rankings with smoothed sigmoid-like transitions
-
 import plotly.graph_objects as go
 import pandas as pd
 import plotly.express as px
 import numpy as np
-
-query1 = """
-with cte as (
-  select *,
-  case  when source_manager_id is null or source_manager_id = destination_manager_id then destination_manager_id
-        when destination_manager_id is null or source_manager_id = destination_manager_id then source_manager_id
-        when source_manager_id != destination_manager_id then destination_manager_id
-      else NULL
-    end as manager_id
-from events where type != 'trade'
-)
-
-select year, m.manager,
-  sum(case when type = 'add' then 1 else 0 end) as adds,
-  sum(case when type = 'drop' then 1 else 0 end) as drops,
-  sum(case when type in ('active', 'inactive') then 1 else 0 end) as rosters
-from cte
-left join managers m
-  on cte.manager_id = m.manager_id
-group by year, m.manager
-order by year, m.manager
-;
-"""
-
-from langchain_community.utilities import SQLDatabase
-
-def init_database(password: str, database: str) -> SQLDatabase:
-  db_uri = f"postgresql://postgres.rpeohwliutyvtvmcwkwh:{password}@aws-0-us-west-1.pooler.supabase.com:6543/{database}"
-  # Here I'm limiting the LLM to only 2 tables (makes things easier, gives better results)
-  return SQLDatabase.from_uri(db_uri, include_tables = ['slots', 'standings', 'team_names'], view_support=True)
-
-db = init_database('slow_learners_2007', 'postgres')
-# print(db.run(query1))
-# print(db.run("select * from standings limit 10;"))
-# pd.read_sql(query1, engine)
-df = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Standings View.csv")
-# df2 = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Standings Table.csv")
-# df = df.merge(df2, on=['year','manager'])
-
 
 def bumpchart(df):
 
@@ -140,7 +100,15 @@ def bumpchart(df):
     return fig
 
 
+# TODO make a small function that will get a table, query from SQL
+
+query = """
+select * from standings;
+"""
+
+df = pd.read_sql_query(text(query), con=db)
+
 fig = bumpchart(df)
 
-fig.write_html("bumpchart.html")
+fig.write_html('bumpchart.html', full_html=False, include_plotlyjs='cdn')
 

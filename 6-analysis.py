@@ -11,8 +11,12 @@ import xgboost as xgb
 import shap
 from sklearn.metrics import classification_report, accuracy_score
 from sklearn.preprocessing import MinMaxScaler
+import streamlit as st
 
-engine = create_engine('postgresql+psycopg2://chad:password@localhost:5432/football', echo=True)
+# Connect to database
+password = st.secrets['supa_password']
+db_uri = f"postgresql://postgres.rpeohwliutyvtvmcwkwh:{password}@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
+engine = create_engine(db_uri, echo=True)
 
 db = engine.connect()
 
@@ -235,7 +239,6 @@ heatmap_data = teams.pivot_table(index='nickname', columns='year', values='draft
 import seaborn as sns
 
 #--------------- Draft Grades Plot ----------------
-
 grade_map = {
         'A+': 4.3,
         'A': 4.0,
@@ -254,7 +257,6 @@ grade_map = {
 
 heatmap_data_num = heatmap_data.replace(grade_map)
 
-
 sns.heatmap(heatmap_data_num, cmap='cividis', annot=heatmap_data, fmt="")
 plt.title('Heatmap of Draft Grades by Team and Year')
 plt.xlabel('Year')
@@ -264,10 +266,10 @@ plt.show()
 
 
 #--------------- Ranks and Total Points Analysis ----------------
-
 # Looking at the relationship between point ranks and draft pick
 
-ranks = pd.read_csv("ranks.csv")
+query = open("ranks.sql").read()
+ranks = pd.read_sql_query(text(query), con=db)
 
 ranks[ranks['position']=='RB'].sort_values('points', ascending=False)
 
@@ -279,11 +281,20 @@ sns.scatterplot(ranks, x='position', y='differential')
 
 sns.lineplot(ranks, x='pick', y='differential', hue='position')
 
-ranks_rb_top20 = ranks[(ranks["pick"] < 50) & (ranks["position"] == "RB")]
-
+ranks_rb_top20 = ranks[(ranks["pick"] <= 20) & (ranks["position"] == "RB")]
 sns.barplot(ranks_rb_top20, x='pick', y='differential')
 
-ranks[ranks['position']=='TE'].sort_values('points', ascending=False)
+ranks_wr_top20 = ranks[(ranks["pick"] <= 20) & (ranks["position"] == "WR")]
+
+sns.barplot(ranks_wr_top20, x='pick', y='differential')
+
+sns.scatterplot(data=ranks_rb_top20, x='pick', y='points', hue='differential', palette='mako')
+sns.scatterplot(data=ranks_wr_top20, x='pick', y='points', hue='differential', palette='mako')
+
+ranks_rb_top20[ranks_rb_top20['points']==0]
+
+ranks_te_top10 = ranks[(ranks["pick"] < 20) & (ranks["position"] == "TE")]
+sns.barplot(ranks_te_top10, x='pick', y='differential')
 
 
 
@@ -300,32 +311,36 @@ df[['roster_moves','adds','games_won','total_points']].corr()
 
 #--------------- Draft Value Analysis ----------------
 
-df = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Roster Data Retrieval.csv")
-
-df['type'] = np.where(df['draft_value'].isna(), 'FA', 'drafted')
+query = open("draft_value.sql").read()
+df_value = pd.read_sql_query(text(query), con=db)
+df_value['type'] = np.where(df_value['draft_value'].isna(), 'FA', 'drafted')
 
 # Look at a given player
-idx = (df['player']=='James Conner') & (df['year']==2018)
-df.loc[idx]
+idx = (df_value['player']=='James Conner') & (df_value['year']==2018)
+df_value.loc[idx]
 
 # Look at the top WR in 2010
-df[(df['position']=='WR') & (df['year']==2010)]
+df_value[(df_value['position']=='WR') & (df_value['year']==2010)]
 
-# def softmax(x):
-#     return np.exp(x) / np.sum(np.exp(x))
+sns.scatterplot(data=df_value, x='season_rank', y='season_pts', hue='position', style='type')
 
-# df['dv_soft'] = softmax(df['draft_value'])
+sns.boxplot(data=df_value, x='position', y='draft_value', hue='year')
 
-sns.scatterplot(data=df, x='season_rank', y='season_pts', hue='position', style='type')
+df_value['position'] = pd.Categorical(df_value['position'], categories=['QB', 'RB', 'WR', 'TE', 'K', 'DEF'], ordered=True)
 
-sns.boxplot(data=df, x='position', y='draft_value', hue='year')
+df_value[(df_value['year']==2009) & (df_value['position']=='RB')]['type'].value_counts()
 
-df['position'] = pd.Categorical(df['position'], categories=['QB', 'RB', 'WR', 'TE', 'K', 'DEF'], ordered=True)
+# Overall
+sns.stripplot(data=df_value, x='position', y='season_pts', hue='type', alpha=0.5, dodge=True)
+sns.pointplot(data=df_value, x='position', y='season_pts', hue='type', dodge=True)
 
-df[(df['year']==2009) & (df['position']=='RB')]['type'].value_counts()
+# Get top 3 FA pickups by year
+df_value[df_value['type']=='FA'].groupby('position').apply(lambda x: x.nlargest(3, 'season_pts'))
+
+
 
 # Plot
-g = sns.FacetGrid(data=df, col='year', hue='type', col_wrap=5, sharex=False)
+g = sns.FacetGrid(data=df_value, col='year', hue='type', col_wrap=5, sharex=False)
 g.map(sns.stripplot, 'position', 'season_pts', alpha=0.25)
 g.map(sns.pointplot, 'position', 'season_pts')
 g.add_legend()
@@ -414,9 +429,36 @@ g.map(sns.regplot, 'rosters', 'points_scored')
 g.savefig("figures/engagement_rosters_points.png")
 
 # Plots overall for all managers
-sns.regplot(data=df, x='adds', y='points_scored')
+sns.regplot(data=df, x='adds', y='points_scored', logx=True)
 sns.regplot(data=df, x='rosters', y='points_scored')
+
+
+# Roster moves by year
+g = sns.FacetGrid(data=df[df['year'].isin([2014,2019,2023])], col='year', col_wrap=5, sharey=False, sharex=False)
+g.map(sns.regplot, 'rosters', 'rank', logx=True)
+g.set(ylim=(13, 0))
+# set axis labels
+g.set_axis_labels("Roster Moves", "End of Season Rank")
+g.savefig("figures/roster_moves_rank.png")
+
+
+g = sns.FacetGrid(data=df[df['year'].isin([2014,2018,2023])], col='year', col_wrap=5, sharey=False, sharex=False)
+g.map(sns.regplot, 'adds', 'rank', logx=True)
+g.set(ylim=(13, 0))
+g.set_axis_labels("Roster Adds", "End of Season Rank")
+g.savefig("figures/roster_adds_rank.png")
+
+sns.lmplot(data=df, x='adds', y='rank', hue='year', ci=False, logx=True)
+
+sns.pairplot(np.log(df[['points_scored','adds','rosters']]))
+
+np.corrcoef(df[['points_scored','adds','rosters']].T)
+
 sns.regplot(data=df, x='adds', y='rank')
+sns.regplot(data=df, x='rosters', y='rank')
+
+sns.boxplot(data=df, x='rank', y='adds')
+sns.boxplot(data=df, x='rank', y='rosters')
 
 sns.regplot(data=df, x='wins', y='rank') # no team has ever won it all with < 8 wins
 df[df['rank']==1]['points_scored'].min() # # you don't need tons of points, 1512 is lowest #1
@@ -558,20 +600,27 @@ shap.plots.waterfall(explainer(X)[109])
 
 shap.summary_plot(shap_values, X)
 
-#--------------- Ranking Bump Charts ----------------
-# see plotly_ranks.py
 
+#--------------- Best Draft Picks ----------------
 
-df = pd.read_csv("/Users/chad/Downloads/supabase_rpeohwliutyvtvmcwkwh_Fetch Draft Events.csv")
-df['topdog'] = [2,2,1,0,1,2,1,2,3,0,3,0]
+# Load data
+query = open("draft_picks.sql").read()
+df = pd.read_sql_query(text(query), engine.connect())
 
 df.sort_values('wins', ascending=False) # best spot is #2 in terms of wins and points
 
 sns.barplot(data=df, x='overall_pick', y='wins', hue='topdog')
 
-df.plot(x='overall_pick', y='wins', kind='line', marker='o', size='topdog')
 df.plot(x='overall_pick', y='points', kind='line', marker='o')
+df.plot(x='overall_pick', y='wins', kind='line', marker='o')
 df.plot(x='overall_pick', y='topdog', kind='line', marker='o')
+
+
+
+#--------------- Ranking Bump Charts ----------------
+# see plotly_ranks.py
+
+
 
 
 

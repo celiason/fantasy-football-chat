@@ -56,11 +56,39 @@ Another challenge I ran into was what LLM to use. I wanted to make this free for
 
 ## Understanding league engagement
 
-1. How much does in season management matter compared to the draft you have?
-2. Does draft pick location matter?
-3. How have league rule changes affected engagement?
-4. What can we do to keep engagement high?
-5. Are there temporal changes in manager behavior that can be used to predict when they might leave the league?
+### How much does in-season management matter?
+
+We can also look at in-season number of moves to see if this has an effect on end-of-season rank. If there is a positive relationship, then it would make sense for a player to stay engaged throughout the course of a season.
+
+Interestingly, in 2014 there was a negative effect, while in 2018 in-season adds had a large effect on final rank. Then in 2023, there was no relationship. In these plots, each point is a manager.
+
+![](figures/roster_adds_rank.png)
+
+The take-home is that the effect of in-season management depends on who is managing the team, and the set of players that are available in a given year.
+
+### How much does the draft matter?
+
+This might influence in-season engagement. If it matters a lot, then why do in season management?
+
+Draft pick location...
+
+{% include_relative bumpchart.html %}
+
+### How have league rule changes affected engagement?
+
+To understand whether shifts in league settings have an effect on engagement, I plotted the relationship between manager activity (total number of adds, drops, roster shifts, and trades) and NFL week in a season. The fitted lines are second-order polynomials. You can see below that there is a clear bump in activity around week 8, then a decrease from week 8 on. It also appears that the curves arae shifting to the right over time. This suggests that more managers are staying active into later weeks of the season, which could be due to changes in league rules (e.g., we changed playoff structure in year X).
+
+![](figures/events_over_time_lmplot.png)
+
+To look at this more closely, I plotted manager activity by year for only week 15. There is a clear linear increase in activity from 2007 to 2023.
+
+![](figures/events_over_time_week15.png)
+
+When we look at week 2, this pattern is not present:
+
+![](figures/events_over_time_week2.png)
+
+### Are there temporal changes in manager behavior that can be used to predict when they might leave the league?
 
 Possible metrics that could be useful in understanding manager engagement are roster turnover (the xx) and the overall number of moves (or transactions) made by a player.
 
@@ -86,18 +114,6 @@ This is analogous to customer purchase behavior. We could have someone that clic
 - Game theory (analysis of player value in draft or trade)
 
 One thing that would be cool is to somehow see if there are any trends in behavior. That is, do some managers act the same way year-to-year in terms of pickups, draft selections, etc.
-
-To understand whether shifts in league settings have an effect on engagement, I plotted the relationship between manager activity (total number of adds, drops, roster shifts, and trades) and NFL week in a season. The fitted lines are second-order polynomials. You can see below that there is a clear bump in activity around week 8, then a decrease from week 8 on. It also appears that the curves arae shifting to the right over time. This suggests that more managers are staying active into later weeks of the season, which could be due to changes in league rules (e.g., we changed playoff structure in year X).
-
-![](figures/events_over_time_lmplot.png)
-
-To look at this more closely, I plotted manager activity by year for only week 15. There is a clear linear increase in activity from 2007 to 2023.
-
-![](figures/events_over_time_week15.png)
-
-When we look at week 2, this pattern is not present:
-
-![](figures/events_over_time_week2.png)
 
 ## Bringing primate dominance hierarchies to fantasy football
 

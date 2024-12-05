@@ -286,14 +286,11 @@ if REBUILD_DB:
 # Drafts
 #------------------------------------------------------------------------
 
-drafts = pd.read_csv("data/drafts.csv")
+drafts = pd.read_csv("data/drafts.csv", index_col=0)
 
 # Add manager ID
-drafts = drafts.merge(teams[['team_key','manager_id']], on="team_key")
-drafts = drafts.drop('team_key', axis=1)
-# drafts.rename({'player_id':'pid', 'manager_id':'mid'}, axis=1, inplace=True)
-drafts = drafts.merge(seasons.reset_index(), on='year')
-drafts = drafts.drop('year', axis=1)
+drafts['manager_id'] = drafts['team_key'].replace(teams_lookup)
+
 drafts.index.name = 'draft_id'
 drafts.index = drafts.index + 1
 
