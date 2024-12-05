@@ -81,15 +81,16 @@ To understand whether shifts in league settings have an effect on engagement, I 
 
 ![](figures/events_over_time_lmplot.png)
 
-To look at this more closely, I plotted manager activity by year for only week 15. There is a clear linear increase in activity from 2007 to 2023.
+<!-- To look at this more closely, I plotted manager activity by year for only week 15. There is a clear linear increase in activity from 2007 to 2023.
 
 ![](figures/events_over_time_week15.png)
 
 When we look at week 2, this pattern is not present:
 
-![](figures/events_over_time_week2.png)
+![](figures/events_over_time_week2.png) -->
 
-### Are there temporal changes in manager behavior that can be used to predict when they might leave the league?
+
+<!-- ### Are there temporal changes in manager behavior that can be used to predict when they might leave the league?
 
 Possible metrics that could be useful in understanding manager engagement are roster turnover (the xx) and the overall number of moves (or transactions) made by a player.
 
@@ -114,7 +115,9 @@ This is analogous to customer purchase behavior. We could have someone that clic
 - Imperfectly competitive markets (fantasy “super team” rosters)
 - Game theory (analysis of player value in draft or trade)
 
-One thing that would be cool is to somehow see if there are any trends in behavior. That is, do some managers act the same way year-to-year in terms of pickups, draft selections, etc.
+One thing that would be cool is to somehow see if there are any trends in behavior. That is, do some managers act the same way year-to-year in terms of pickups, draft selections, etc. -->
+
+
 
 ## Bringing primate dominance hierarchies to fantasy football
 
