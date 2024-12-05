@@ -70,9 +70,10 @@ The take-home is that the effect of in-season management depends on who is manag
 
 This might influence in-season engagement. If it matters a lot, then why do in season management?
 
-Draft pick location...
+Here is a bumpchart showing where a manger ranks in a given year. The plot is interactive when viewed on my [personal website](https://celiason.github.io/4-software).
 
-{% include_relative bumpchart.html %}
+![](bumpchart.png)
+
 
 ### How have league rule changes affected engagement?
 

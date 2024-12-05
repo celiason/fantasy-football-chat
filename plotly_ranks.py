@@ -110,5 +110,9 @@ df = pd.read_sql_query(text(query), con=db)
 
 fig = bumpchart(df)
 
+# For my personal website
 fig.write_html('bumpchart.html', full_html=False, include_plotlyjs='cdn')
+
+# For the github markdown page
+fig.write_image('bumpchart.png')
 
