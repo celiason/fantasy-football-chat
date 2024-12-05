@@ -12,19 +12,14 @@ import shap
 from sklearn.metrics import classification_report, accuracy_score
 from sklearn.preprocessing import MinMaxScaler
 import streamlit as st
+from sql_to_df import sql_to_df
 
-# Connect to database
-password = st.secrets['supa_password']
-db_uri = f"postgresql://postgres.rpeohwliutyvtvmcwkwh:{password}@aws-0-us-west-1.pooler.supabase.com:6543/postgres"
-engine = create_engine(db_uri, echo=True)
-
-db = engine.connect()
+# Script-wide variables
+current_managers = ['andy','jon','bo','josiah','shane','chad','jarrod','aaron','kai','charles','david','will']
 
 #--------------- Dropoff Analysis ----------------
-query = open("dropoff.sql").read()
-df = pd.read_sql_query(text(query), con=db)
 
-current_managers = ['andrew','jon','bo','josiah','shane','chad','jarrod','aaron','kai','charles','david','daniel']
+df = sql_to_df(query = "queries/dropoff.sql")
 
 # Clean up the manager names
 df['manager'] = [re.split('[ _]', x)[0].lower() for x in df['manager']]
@@ -69,8 +64,8 @@ plt.savefig('figures/dropoff.png')
 #--------------- Player Stints Plotting ----------------
 # running queries from .SQL files
 # psql -d football -f query.sql
-query = open("stints.sql").read()
-df = pd.read_sql_query(text(query), con=db)
+
+df = sql_to_df("queries/stints.sql")
 df['manager'] = [re.split('[ _]', x)[0].lower() for x in df['manager']]
 df = df[df['manager'].isin(current_managers)]
 df['stint'] = df['stint'].dt.days
@@ -78,15 +73,24 @@ df['stint'] = df['stint'].dt.days
 # Histogram
 df['stint'].hist()
 
-df['stint'].idmax()
-
-
-sns.histplot(data=df, x='stint', hue='manager', bins=10, multiple='stack')
-
 # Average by year
 df_yearly = df.groupby(['year','manager','pos'])['stint'].apply('mean').reset_index()
 
-sns.histplot(df_yearly[df_yearly['pos'].isin(['WR','QB','RB'])], x='stint', hue='pos')
+# Violin plots by manager
+plt.figure(figsize=(8, 12))
+sns.violinplot(data=df_yearly[df_yearly['pos'].isin(['WR','QB','RB','K','DEF'])],
+               x='stint', y='pos', hue='manager', linewidth=0.25)
+# sns.stripplot(data=df_yearly[df_yearly['pos'].isin(['WR','QB','RB','K','DEF'])], x='stint', 
+#               y='pos', hue='manager', dodge=True, alpha=0.25, zorder=1, legend=False, size=3)
+# sns.pointplot(data=df_yearly[df_yearly['pos'].isin(['WR','QB','RB','K','DEF'])], x='stint', 
+#               y='pos', hue='manager', linestyle='none',
+#               errorbar=None, markers='d', dodge=0.8 - 0.8/12, markersize=4)
+# change legend postition
+plt.legend(loc='lower right')
+# # figure size
+plt.xlabel('Days on active roster')
+plt.ylabel('Position')
+plt.savefig('figures/stints_violin.png', bbox_inches='tight')
 
 # Create the boxplot ordered by mean
 df_kickers = df_yearly[df_yearly['pos']=='K']
@@ -311,7 +315,7 @@ df[['roster_moves','adds','games_won','total_points']].corr()
 
 #--------------- Draft Value Analysis ----------------
 
-query = open("draft_value.sql").read()
+query = open("queries/draft_value.sql").read()
 df_value = pd.read_sql_query(text(query), con=db)
 df_value['type'] = np.where(df_value['draft_value'].isna(), 'FA', 'drafted')
 
