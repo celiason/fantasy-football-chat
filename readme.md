@@ -1,5 +1,19 @@
 # Fantasy football chatbot
 
+## Table of Contents
+
+- [Introduction](#introduction)
+- [Challenges with the data](#challenges-with-the-data)
+- [Optimizing database structure](#optimizing-database-structure)
+- [Prompt engineering for the LLM](#prompt-engineering-for-the-llm)
+- [Understanding league engagement](#understanding-league-engagement)
+    - [How much does in-season management matter?](#how-much-does-in-season-management-matter)
+    - [How have league rule changes affected engagement?](#how-have-league-rule-changes-affected-engagement)
+- [Visualizing league history](#visualizing-league-history)
+    - [Bumpcharts to show rankings over time](#bumpcharts-to-show-rankings-over-time)
+    - [Primate dominance hierarchies applied to fantasy football](#primate-dominance-hierarchies-applied-to-fantasy-football)
+- [References](#references)
+
 <!-- ![](assets/dalle_turtle.jpg) -->
 <!-- ![](assets/dalle_logo2.jpg) -->
 <!-- ![](assets/dalle_logo3.webp) -->

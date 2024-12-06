@@ -15,14 +15,15 @@ import streamlit as st
 from sql_to_df import sql_to_df
 
 # Script-wide variables
-current_managers = ['andy','jon','bo','josiah','shane','chad','jarrod','aaron','kai','charles','david','will']
+current_managers = ['Andy','Jon','Bo','Josiah','Shane','Chad','Jarrod',
+                    'Aaron','Kai','Charles','David','Will']
 
 #--------------- Dropoff Analysis ----------------
 
 df = sql_to_df(query = "queries/dropoff.sql")
 
 # Clean up the manager names
-df['manager'] = [re.split('[ _]', x)[0].lower() for x in df['manager']]
+# df['manager'] = [re.split('[ _]', x)[0].lower() for x in df['manager']]
 
 # Filter out the managers we don't care about
 # df = df[df['manager'].isin(current_managers)]
@@ -693,6 +694,7 @@ sns.scatterplot(X_pca, x='PC1', y='PC2', hue=labels, palette='Set1')
 
 
 # Generate plots
+
 p = sns.lmplot(data=events_sum, x='week', y='event_count', hue='year', order=2, ci=False, palette='mako')
 p.set_axis_labels("Week", "Manager Activity")
 p.fig.set_figwidth(12)
@@ -714,4 +716,59 @@ p.savefig("figures/events_over_time_week15.png", bbox_inches='tight')
 # when did we change league rules?
 
 # when did we add keepers
+
+#--------------- Manager Positional Tendencies ----------------
+query = """
+select d.year, pick, round, player, position, manager,
+    row_number() over (partition by d.year, manager order by pick) as pick_seq
+from drafts d
+left join managers m
+    on d.manager_id = m.manager_id
+left join players p
+    on d.player_id = p.player_id
+;
+"""
+
+df = sql_to_df(query)
+
+df_current = df[df['manager'].isin(current_managers)]
+
+# First pick by manager and year
+df_sum = df_current[df_current['pick_seq'] <= 1].groupby('manager')['position'].value_counts().unstack()
+
+# Plot proportion of first picks by position
+df_sum = df_sum.apply(lambda x: x / x.sum(), axis=1)
+df_sum.sort_values('WR', ascending=True, inplace=True)
+df_sum = df_sum[['WR','RB','QB','TE']]
+colors = ['darkcyan', 'lightblue', 'pink', 'lemonchiffon']
+color_dict = dict(zip(['WR','RB','QB','TE'], colors))
+
+# Make the bar chart
+df_sum.plot(kind='barh', stacked=True, colormap='Set2')
+plt.xlabel('Proportion of First Picks')
+plt.ylabel('Manager')
+# sort by most common first pick, then 2nd, so on
+plt.savefig('figures/first_picks.png', bbox_inches='tight')
+
+pos_kgrams = df.groupby(['year', 'manager'])['position'].apply(lambda x: ' '.join(x[:2]))
+pos_kgrams = pos_kgrams.reset_index()
+pos_kgrams['position'].value_counts()
+# most common = RB-WR (47)
+# 2nd most common = RB-RB (37)
+# 3rd most common = WR-RB (22)
+
+pos_kgrams[pos_kgrams['manager']=='Chad']['position'].value_counts()
+
+kgram_sum = pos_kgrams.groupby('year')['position'].value_counts().unstack()
+kgram_sum.fillna(0, inplace=True)
+# kgram_sum.sort_values('RB RB', ascending=False, inplace=True)
+kgram_sum.sort_index(inplace=True)
+# set 'RB RB' as first column
+
+kgram_sum = kgram_sum[['RB RB', 'RB WR', 'RB TE', 'RB QB', 'WR RB', 'WR WR', 'WR TE', 'WR QB', 'TE RB', 'TE WR', 'QB WR', ]]
+
+# kgram_sum = kgram_sum[['RB RB'] + [col for col in kgram_sum.columns if col != 'RB RB']]
+
+kgram_sum.plot(kind='barh', stacked=True, colormap='Paired', figsize=(12, 8))
+
 
